@@ -5,7 +5,6 @@ import requests
 import thingspeak
 
 
-# TODO: Timezone offsets.
 # TODO: Figure out transformations that need to be done to data.
 # TODO: Calculating the Purple Air EPA score from the concentration numbers.
 # TODO: Type Annotation
@@ -68,3 +67,5 @@ def get_thingspeak(channel: thingspeak.Channel, **kwargs) -> pd.DataFrame:
         # Creates data frame from response JSON dictionary.
         df = pd.DataFrame.from_dict(response['feeds']).set_index(['created_at']).rename(columns=fields)
         return df
+
+# TODO: Note that sensor dates and times are returned in UTC.

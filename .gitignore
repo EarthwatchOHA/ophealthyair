@@ -50,3 +50,4 @@ Thumbs.db
 # Outputs Image Files #
 *.png
 *.jpg
+.Rproj.user

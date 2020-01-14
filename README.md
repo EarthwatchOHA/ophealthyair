@@ -1,10 +1,14 @@
 # oha-ups
 To Do:
-Figure out downsampling from 2 minutes to 10 minutes. (See Note below)
-Continue cleaning and functionalizing jupyter-notebook for pipeline.
-Turn into .py files.
-Create plotting script.
-Add Command Line Argument Parsing
+
+1. Complete Output to Excel Script.
+2. Draft QAQC pipeline vignette. 
+3. Create script for QAQC.
+4. Create monitoring report-card.
+5. Add Command Line Argument Parsing.
+6. Attempt to refactor code.
+7. Incorporate task-logging.
+8. Brainstorm sensor naming conventions & additional metadata for catalog.
 
 Notes:
 "A much better approach than to read more than 8000 points in a loop is to downsample the data and store it in another channel.
