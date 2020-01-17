@@ -2,7 +2,7 @@ fetch_SensorCatalog <- function(path = "C:/Users/iozeroff/Earthwatch/Anna Woodro
   # Updates Sensor Catalog .rds object from OneDrive file.
   # TODO: Standardize column names on import.
   # TODO: Parse dates.
-  sensor_catalog <- readxl::read_excel(path)
+  sensor_catalog <- readxl::read_excel(path, sheet = "Sensor Catalog")
   
   saveRDS(sensor_catalog, "data/sensor_catalog.rds")
   return(sensor_catalog)
@@ -15,7 +15,7 @@ load_SensorCatalog <- function() {
 
 get_pat <- function(label, id, pas, startdate = NULL, enddate = NULL, timezone = NULL) {
   # Creates a new pat object, but intended to be used iteratively, with error and warning handlers.
-  # TODO: Suppress simple warnings that occur when there is missing data in the time period.
+  # TODO: Add loggr:: for error detection.
   tryCatch( 
     expr = {
       pat <- AirSensor::pat_createNew(pas = pas, id = id, label = label,
@@ -27,13 +27,8 @@ get_pat <- function(label, id, pas, startdate = NULL, enddate = NULL, timezone =
     error = function(e) {
       message(paste(label, ":", e))
       return(paste(e))
-    },
-    warning = function(w) {
-      # Note that there is no notice if a warning occurs.
-      return(pat)
     })
 }
-
 
 fetch_pat_list <- function(pas, sensor_labels, sensor_ids,
                            startdate = NULL, enddate = NULL, timezone = NULL) {
@@ -54,9 +49,12 @@ fetch_pat_list <- function(pas, sensor_labels, sensor_ids,
                           startdate = start, enddate = end) %>% 
     rlang::set_names(sensor_labels)
   
-  filename <- paste("pat_list", "-", lubridate::today(), ".rds", sep = "")
-  path <- paste("data", filename, sep = "/")
   saveRDS(pat_list, "data/pat_list")
+  return(pat_list)
+}
+
+load_pat_list <- function() {
+  pat_list <- readRDS("data/pat_list.rds")
   return(pat_list)
 }
 
