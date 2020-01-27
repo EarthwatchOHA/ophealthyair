@@ -2,7 +2,8 @@ fetch_SensorCatalog <- function(path = "C:/Users/iozeroff/Earthwatch/Anna Woodro
   # Updates Sensor Catalog .rds object from OneDrive file.
   # TODO: Standardize column names on import.
   # TODO: Parse dates.
-  sensor_catalog <- readxl::read_excel(path, sheet = "Sensor Catalog")
+  sensor_catalog <- readxl::read_excel(path, sheet = "Sensor Catalog") %>% 
+    dplyr::rename(id = "Sensor ID", label = "Sensor Label", site = "Deploy Site")
   
   saveRDS(sensor_catalog, "data/sensor_catalog.rds")
   return(sensor_catalog)
@@ -11,6 +12,11 @@ fetch_SensorCatalog <- function(path = "C:/Users/iozeroff/Earthwatch/Anna Woodro
 load_SensorCatalog <- function() {
   # Loads Sensor Catalog Object as DataFrame.
   sensor_catalog <- readRDS("data/sensor_catalog.rds")
+}
+
+read_pas <- function() {
+  # This function reads in the saved pas RDS object.
+  return(readRDS("data/pas.rds"))
 }
 
 get_pat <- function(label, id, pas, startdate = NULL, enddate = NULL, timezone = NULL) {
@@ -35,8 +41,8 @@ fetch_pat_list <- function(pas, sensor_labels, sensor_ids,
   
   # Creates list of pat objects from a pas object and vector of sensor labels and sensor ID's.
   # TODO: Add logging (package loggr).
-  # TODO: Input control system to confirm sensor_labels and sensor_ids are vectors for passing into map2. 
   # TODO: Best filing and loading system (data persistence). 
+  # TODO: Fix growing list. 
   
   if (!purrr::is_bare_vector(sensor_labels)) {
     sensor_labels <- unlist(sensor_labels)
@@ -45,12 +51,14 @@ fetch_pat_list <- function(pas, sensor_labels, sensor_ids,
     sensor_ids <- unlist(sensor_ids)
   }
   
-  pat_list <- purrr::map2(sensor_labels, sensor_ids, .f = get_pat, pas = pas,
-                          startdate = start, enddate = end) %>% 
+  suppressWarnings(expr = {
+  pat_list <- purrr::map2(.x = sensor_labels, .y = sensor_ids, .f = get_pat, pas = pas,
+                          startdate = startdate, enddate = enddate, timezone = timezone) %>% 
     rlang::set_names(sensor_labels)
   
-  saveRDS(pat_list, "data/pat_list")
+  saveRDS(pat_list, "data/pat_list.rds")
   return(pat_list)
+  })
 }
 
 load_pat_list <- function() {
@@ -60,6 +68,7 @@ load_pat_list <- function() {
 
 aggregate_pat_list <- function(pat_list) {
   # Accepts a list of Purple Air Time Series objects, applies pat_aggregate to each element that is a pat.
+  # TODO: Fix growing list.
   agg_list <- list()
   for (i in 1:length(pat_list)) {
     label <- sensor_labels[i]
@@ -74,12 +83,20 @@ aggregate_pat_list <- function(pat_list) {
   }
 }
 
-get_site_pats <- function(sensor_catalog, pat_list, site) {
+get_site_pats <- function(site) {
+
   # This function filters utilizes the sensor_catalog Deploy Site column to filter the pat_list depending on a given site.
-  # TODO: Add error control system. 
-  # TODO: Have this call load_sensor_catalog instead of as an argument?
-  site_sensors <-  sensor_catalog %>% filter(`Deploy Site` == site) %>%
-    select(`Sensor Label`) %>% unlist()
-  site_pats <- pat_list[names(pat_list) %in% site_sensors]
-  return(site_pats)
+  # TODO: Add error control system.
+  sensor_catalog <- load_SensorCatalog()
+  
+  if(!any(site %in% unique(sensor_catalog$site))) {
+    stop("Site is not present in Sensor Catalog.")
+  }
+  site_sensors <-  sensor_catalog %>% filter(site == site)
+  site_pat_list <- fetch_pat_list(sensor_labels = site_sensors$label, sensor_ids = site_sensors$id)
+  return(site_pat_list)
 }
+
+
+  
+

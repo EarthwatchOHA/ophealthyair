@@ -1,0 +1,188 @@
+---
+title: "Weekly Air Sensor Health Report"
+author: "Earthwatch Institute"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(dplyr)
+library(ggplot2)
+library(AirSensor)
+library(purrr)
+library(formattable)
+
+knitr::opts_knit$set(root.dir = here::here())
+
+```
+
+```{r ingestion, include=FALSE}
+# Define problematic cutoffs for looking more closely at site sensors.
+# TODO: Add Pct_Cutoff and Rsquared Cutoff as params to the rmd?
+pct_cutoff <- 97
+rsquared_cutoff <- 0.80
+
+source("R/ingest_all.R")
+
+pat_list <- load_pat_list()
+sensor_catalog <- load_SensorCatalog()
+
+
+# TODO: Add lines that accept a param of the program we are monitoring. Use sensor catalog as a filter.
+```
+
+
+# Ingestion Status
+
+Below is the list of sensors we attempted to download data for, and the results of that attempt.
+
+```{r, echo=FALSE, warning=FALSE}
+# Checks elements of pat_list whether they are or are not pats.
+pat_test <- purrr::map_lgl(.x = pat_list, .f = AirSensor::pat_isPat) 
+
+pat_test %>%
+  tibble::tibble(value = ., sensor = names(pat_test)) %>%  
+  mutate(status = if_else(value, "Purple Air Time Series Successfully Loaded.",
+         "Purple Air Time Series was unable to load.")) %>% 
+  arrange(desc(value)) %>% 
+  select(sensor, status) %>% 
+  knitr::kable()
+
+pat_list <- pat_list[pat_test]
+
+```
+
+
+# Site Summary Collection Statistics
+
+Below are summary statistics for every site. They are the averaged over every sensor we were able to ingest (see above for reference). All percentages below `r pct_cutoff` or R-Squared statistics below `r rsquared_cutoff` are highlighted in red, and will be investigated more thorougly in the rest of this report. Below see a short description of each statistic:
+
+* pm25_A_pct_Reporting: The percentage of Particulate Matter 2.5 readings collected by Channel A out of the total possible opportunities for data collection. (Sensors channels generate readings every 120 seconds.)
+* pm25_B_pct_Reporting: The percentage of Particulate Matter 2.5 readings collected by Channel B out of the total possible opportunities for data collection. (Sensors channels generate readings every 120 seconds.)
+* pm25_A_pct_Valid: The percent of Channel A PM2.5 readings that are within the sensor's detection range. "A Plantower particle detector’s effective range for PM2.5 lies between 0 and 500 ug/m3, even though it can still report measurements up to 1000 ug/m3 and beyond."
+* pm25_B_pct_Valid: The percent of Channel B PM2.5 readings that are within the sensor's detection range. "A Plantower particle detector’s effective range for PM2.5 lies between 0 and 500 ug/m3, even though it can still report measurements up to 1000 ug/m3 and beyond."
+* pm25_A_pm25_B_rsquared: The proportion of variance accounted for by a linear regression model created for Channel A and Channel B PM 2.5 measurements. Essentially, the proportion of variance (difference from the predicted value) of Channel B, based on Channel A's measurement. Ranges from 0 being no predictable relationship between A and B and 1 being perfect synchronicity between the channels.
+* temperature_pct_Reporting: The percentage of temperature readings collected by the sensor out of the total possible opportunities for data collection
+* temperature_pct_Valid: The percent of recorded temperature readings that are within the parameters of the sensor's detection capability "The unit’s ‘operational’ temperature sensor range lies between -40°C to +85°C, but narrows its ‘full-accuracy’ to between 0°C and 65°C." 
+* humidity_pct_Reporting: The percentage of relative humidity readings collected by the sensor out of the total possible opportunities for data collection.
+* humidity_pct_Valid: The percent of recorded relative humidity readings that are within the valid parameters of the sensor's detection capability."The humidity sensor is operational between -40°C and 85°C, and can measure from 0 to 100 %RH."
+
+
+If there are no sites reporting below either of these cutoffs, this will be the last figure in the report. 
+
+```{r, echo=FALSE}
+# Define the functions we want pat_dailySoH to run on our sensors.
+desired_functions = c("PurpleAirSoH_dailyPctReporting",
+                      "PurpleAirSoH_dailyPctValid",
+                      "PurpleAirSoH_dailyABFit")
+# Generates daily State of Health values for every pat in pat_list.
+pat_SoH <- map(pat_list, AirSensor::pat_dailySoH,
+            SoH_functions = desired_functions) %>% 
+  bind_rows(.id = "sensor") %>% # Binds all into single df.
+  select(-c("pm25_A_pm25_B_slope", "pm25_A_pm25_B_intercept")) %>% 
+  left_join(select(sensor_catalog, label, site), by = c("sensor" = "label")) # Adds site variable from catalog.
+
+site_SoH_summary <- pat_SoH %>% 
+  group_by(site) %>%
+  summarize_if(is.numeric, mean)
+
+# Creates function to color percentage cells that don't meet cutoff.
+color_problematic_pcts <- formatter(.tag = "span", style = x ~ ifelse(x < pct_cutoff | is.na(x), 
+                                                  formattable::style(background = "red",
+                                                                     color = "white",
+                                                                     font.weight = "bold"), 
+                                                  formattable::style(background = "green",
+                                                                     color = "white",
+                                                                     font = "bold")))
+# Creates function to color rsquared cells that don't meet cutoff.
+color_problematic_r2s <- formatter(.tag = "span", style = x ~ ifelse(x < rsquared_cutoff | is.na(x), 
+                                                                     formattable::style(background = "red", 
+                                                                                        color = "white", 
+                                                                                        font.weight = "bold"),
+                                                                     formattable::style(background = "green",
+                                                                                        color = "white",
+                                                                                        font = "bold")))
+
+site_SoH_summary %>% 
+  mutate_at(vars(contains("pct")), .funs = color_problematic_pcts) %>%
+  mutate_at(vars(contains("rsquared")), .funs = color_problematic_r2s) %>% 
+  format_table(format = 'markdown')
+  
+ 
+
+
+```
+
+
+
+```{r, echo=FALSE}
+# TODO: Have workflow change depending on what's not functioning correctly?
+# TODO: Create variable, continue_chunks, that evaluates chunks based off if there are values in problem_sites.
+
+problem_sites <- union(
+  filter_at(site_SoH_summary, vars(contains("pct")), any_vars(. < pct_cutoff | is.na(.))),
+  filter_at(site_SoH_summary, vars(contains("rsquared")), any_vars(. < rsquared_cutoff | is.na(.)))) %>%
+  pull(site)
+
+
+if(!is_empty(problem_sites)) {
+  continue_report <- TRUE
+  print("The following sites appear to have one or more sensors not functioning as expected:")
+  print(problem_sites)
+} else {
+  continue_report <- FALSE
+  print("All sites appear to have sensors functioning as expected. End of Report.")
+}
+
+```
+
+
+
+# Individual Sensor Evaluation
+
+```{r, echo=FALSE, eval=continue_report}
+
+problem_sensor_summary <- pat_SoH %>%
+  filter(site %in% problem_sites) %>% 
+  select(-contains("DC")) %>% 
+  group_by(sensor) %>% 
+  summarize_if(is.numeric, mean)
+
+problem_sensors <- union(filter_at(problem_sensor_summary,
+                         vars(contains("pct")), any_vars(. < pct_cutoff | is.na(.))),
+                         filter_at(problem_sensor_summary,
+                         vars(contains("rsquared")), any_vars(. < rsquared_cutoff | is.na(.))))
+
+
+
+```
+The following sensors appear to be performing in an unexpected manner: 
+`r print(problem_sensors)`
+
+Below you will find graphs that you can evaluate for possible hardware or reporting issues.
+
+In the below graphs (one for each sensor) the red line is the expected state, and the black line the actual state of the sensors reporting.If you see no red line (i.e. it's covered by the black line), the sensor is functioning as expected. If you see no black line, the channel or channels being reported on are not collecting. Reference the "pctReporting" plots to determine which channels are not reporting.
+
+
+```{r, eval=continue_report, echo=FALSE, warning=FALSE}
+
+for (i in 1:length(pull(problem_sensors, sensor))) {
+    sensor <- problem_sensors[["sensor"]][[i]]
+    plot <- pat_dailySoHPlot(pat_list[[sensor]])
+    print(plot)
+}
+
+```
+
+The below plots use the MazamaScience AirSensor Sensor Health index to categorize the state of the sensor's health. This index is based on the A B rsquared (described above), to rank sensor reporting periods as Good, Fair, or Poor. Red dots are channel A PM2.5 measurements. Blue dots are channel B PM2.5 measurements. The color bar underneath the points in the plot corresponds to the rated health index of the sensor for the corresponding time span.
+
+```{r, eval=continue_report}
+for (i in 1:length(pull(problem_sensors, sensor))) {
+    sensor <- problem_sensors[["sensor"]][[i]]
+    plot <- pat_dailySoHIndexPlot(pat_list[[sensor]])
+    print(plot)
+}
+
+
+```
