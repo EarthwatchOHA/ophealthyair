@@ -1,0 +1,9 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+
+scripts/
+reporting/
+revised-functions/
+outputs/
+inputs/
+useful/
