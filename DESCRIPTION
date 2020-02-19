@@ -1,4 +1,4 @@
-Package: OpHealthyAir
+Package: ophealthyair
 Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
 Authors@R: 
@@ -13,5 +13,17 @@ Encoding: UTF-8
 LazyData: true
 Suggests: 
     knitr,
-    rmarkdown
+    rmarkdown,
+    testthat
 VignetteBuilder: knitr
+Imports: 
+    AirSensor,
+    dplyr,
+    RDCOMClient,
+    zip,
+    roxygen2,
+    MazamaCoreUtils,
+    MazamaSpatialUtils,
+    here,
+    lubridate
+RoxygenNote: 7.0.2
