@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 # ophealthyair
+=======
+>>>>>>> ca0cbc77311be851335d73a0392d72c8d5d692e7
 To Do:
 2. Schedule weekly reports.
 3. Draft QAQC pipeline vignette. 
