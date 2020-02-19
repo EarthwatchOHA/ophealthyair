@@ -1,14 +1,18 @@
-# oha-ups
+# ophealthyair
 To Do:
-
-1. Complete Output to Excel Script.
-2. Draft QAQC pipeline vignette. 
-3. Create script for QAQC.
-4. Create monitoring report-card.
+2. Schedule weekly reports.
+3. Draft QAQC pipeline vignette. 
+  - Replicate Ashley's Diagram
+    - pat_qc (Validity)
+    - pat_outliers (Hampel Filter)
+    - Hourly_AB_01 (Hourly Averaging Conditions)
+4. Create script for QAQC.
 5. Add Command Line Argument Parsing.
-6. Attempt to refactor code.
-7. Incorporate task-logging.
+6. Work on TODO's (mostly error control systems).
+7. Incorporate task-logging (break into ingestion log, QAQC log, delivery log.
 8. Brainstorm sensor naming conventions & additional metadata for catalog.
+9. PAS persistence.
+10. Profile and benchmark ingestion system. Branch for speed ups. Consider switching from purrr to furrr for parallel processing. Can wait until after initial deployment.
 
 Notes:
 "A much better approach than to read more than 8000 points in a loop is to downsample the data and store it in another channel.
