@@ -78,3 +78,34 @@ make_site_dataviz_pkg <- function(
   return(dir_path)
   
 }
+
+
+#--------------------------------------------------------------------------------------------------------
+# Util Data Preparation Function.
+.outliercount_list_viz_prep <- function(outliercount_list) {
+  # Preparing preliminary datasets.
+  # TODO: Refactor
+  # Days during the workweek.
+  workweek <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+  # Days of the weekend.
+  weekend <- c("Saturday", "Sunday")
+  
+  # Readying plotting set.
+  viz_prepped <- outliercount_list %>% 
+    # Convert to df.
+    bind_rows(.id = "sensor") %>%
+    # Filter by minimum observation count of 20.
+    filter(min_count >= 20) %>% 
+    mutate(
+      # Mean, mean maximum, mean minimum of A and B channels
+      pm_channels_max = (pm25_A_max+pm25_B_max)/2,
+      pm_channels_min = (pm25_A_min+pm25_B_min)/2,
+      # Getting day of week for each hour.
+      weekday = weekdays(datetime),
+      # Extracting hour.
+      hour = format(datetime, "%H"),
+      # Workweek 1 or 0.
+      workweek = factor(if_else(weekday %in% workweek, "workweek", "weekend"))) 
+  
+  return(viz_prepped)
+}
