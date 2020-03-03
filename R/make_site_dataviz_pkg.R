@@ -23,7 +23,7 @@ make_site_dataviz_pkg <- function(
   # Creating workbook:
   
   # Instantiates and fills workbook object.
-  wb <- create_PA_wkbk(outliercount_list = outliercount_list, sensor_catalog = sensor_catalog, 
+  wb <- make_PA_wkbk(outliercount_list = outliercount_list, sensor_catalog = sensor_catalog, 
                        sensor_aqi_list = sensor_aqi_list, use_aqi = use_aqi)
   
   #--------------------------------------------------------------------------------------------------------
