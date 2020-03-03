@@ -3,6 +3,7 @@
 =======
 >>>>>>> ca0cbc77311be851335d73a0392d72c8d5d692e7
 To Do:
+1. Schedule ingest_all.R to run every day or something of the sort.
 2. Schedule weekly reports.
 3. Draft QAQC pipeline vignette. 
   - Replicate Ashley's Diagram

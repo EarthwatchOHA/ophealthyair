@@ -51,3 +51,11 @@ Thumbs.db
 *.png
 *.jpg
 .Rproj.user
+packrat/lib*/
+packrat/src/
+inst/doc
+
+# Folders Not Necessary for Repo #
+resources/
+outputs/
+
