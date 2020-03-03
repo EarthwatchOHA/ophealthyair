@@ -1,3 +1,5 @@
+# This script ingests only the Purple Air Timeseries for a given sensor.
+# This scripts ingest only the Purple Air Time Series for the given site. 
 library(MazamaCoreUtils)
 library(MazamaSpatialUtils)
 devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
@@ -16,17 +18,8 @@ countries_coded <- c("United States", "India", "Sri Lanka") %>%
   countrycode::countrycode(origin = "country.name", destination = "iso2c")
 
 # TODO: Add way to specify program.
-sensor_catalog <- fetch_SensorCatalog() %>% filter(site != "Undeployed")
+sensor_catalog <- fetch_SensorCatalog() %>% filter(site != "Undeployed" & site == partner_site)
 
 pas <- fetch_pas(countryCodes = countries_coded)
 
-# Setting up startdate and enddate variables.
-default_startdate <- 20180101
-startdates <- sensor_catalog$`Deploy Date` %>% stringr::str_replace_all(pattern = "-", replacement = "") %>% as.integer()
-startdates[is.na(startdates)] <- default_startdate
-# TODO: Could maybe do the enddates inside of fetch_pat_list.
-enddate <- as.numeric(stringr::str_replace_all(lubridate::today(), "-", ""))
-enddates <- rep.int(x = enddate, times = length(startdates))
-
-fetch_pat_list(sensor_labels = sensor_catalog$label, sensor_ids = sensor_catalog$id, pas = pas,
-               startdate = startdates, enddate = enddates)
+get_pat(label = sensor_catalog$label, id = sensor_catalog$id, pas = pas, startdate = startdate, enddate = enddate)
