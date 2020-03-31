@@ -26,3 +26,12 @@ pat_qaqc_agg <- function(pat, period = "1 hour",
   
   return(agg_qaqc)
 }
+
+
+.qaqc_filtering <- function(df) {
+  output <- filter(df,
+                   !(min_count < 20),
+                   !(pm25_p < 0.0001 & mean_diff > 10),
+                   !(pm25 < 100 & mean_diff > 20)
+  )
+} 
