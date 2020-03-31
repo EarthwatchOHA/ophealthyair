@@ -15,6 +15,7 @@ knitr::opts_chunk$set(
 )
 
 library(dplyr)
+library(ggplot2)
 devtools::load_all(path = "C://Users/iozeroff/Data-Science/ophealthyair")
 devtools::load_all(path = "C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
 
@@ -24,9 +25,8 @@ knitr::opts_knit$set(root.dir = here::here())
 
 ```{r ingestion, include=FALSE}
 # Figure out memory saving way to ingest. 
-source("scripts/ingest_all.R")
 pat_list <- load_pat_list()
-sensor_label <- "EW_VonHillern_RM1_"
+sensor_label <- "EW_Waldorf_4a8"
 pat <- pat_list[[sensor_label]]
 ```
 
@@ -51,7 +51,17 @@ First we apply the AirSensor package's Quality Control function. This replaces a
 * Relative Humidity (RH): $0-100$%
 
 ```{r pat_qc, results='hide'}
-pat <- pat %>% pat_qc(max_humidity = NULL)
+pat_qcd <- pat %>% pat_qc(max_humidity = NULL)
+
+pat %>% 
+  pat_extractData() %>% 
+  ggplot(aes(x = datetime)) +
+  geom_point(aes(y = pm25_A), color = "blue") +
+  geom_point(aes(y = pm25_B), color = "green") +
+  geom_hline(yintercept = 1000, color = "red") +
+  labs(
+    y = "PM25"
+  )
 ```
 
 Next we utilize AirSensor's pat_aggregateOutlierCounts function. This 
@@ -59,7 +69,8 @@ Next we utilize AirSensor's pat_aggregateOutlierCounts function. This
 1. Applies the Hampel Filter (See [resources/Mazama-Air-Sensor-Vignettes/](outlier_detection.html)) to all of our time series (PM25, Temp, RH), flags outliers, and replaces outliers for our two PM25 channels with the rolling window median. Below displays the results of this process with the red points as our outlier values, and the green as our replacement values. 
 
 ```{r outlierPlot, echo=FALSE}
-pat %>% pat_outlierPlot()
+pat_qcd %>% pat_outlierPlot()
+
 
 ```
 
