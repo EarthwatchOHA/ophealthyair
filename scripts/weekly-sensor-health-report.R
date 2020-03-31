@@ -9,8 +9,8 @@ programs <- c("All", "India", "Southern California", "Boston", "Sri Lanka")
 
 devtools::load_all("C://Users/iozeroff/Data-Science/ophealthyair")
 
-source("scripts/ingest_all.R")
-
+source("scripts/ingest_all_wk.R")
+  
 for (i in 1:length(programs)) {
   filename <- paste(programs[i], ".html", sep = "")
   rmarkdown::render(input = input_path,
