@@ -44,15 +44,16 @@ save_aqi_info <- function() {
   ind_aqi_info <- list(
     index_category = c("Good", "Satisfactory", "Moderate",
                        "Poor", "Very Poor", "Severe"),
-    aqi_pm_mins = c(-Inf, 31, 61, 91, 121, 250),
+    aqi_pm_mins = c(-Inf, 31, 61, 91, 121, 251),
     aqi_pm_maxs = c(30, 60, 90, 120, 250, Inf),
+    breaks_24 = c(-Inf, 31, 61, 91, 121, 251, Inf),
     aqi_breaks = c(0, 50, 100, 200, 300, 400, 500),
-    index_category_descriptions = c("Good" = "Minimal Impact",
-                                    "Satisfactory" = "May cause minor breathing discomfort to sensitive people.",
-                                    "Moderate" = "May cause breathing discomfort to people with lung disease such as asthma and discomfort to people with heart disease, children and older adults.",
-                                    "Poor" = "May cause breathing discomfort to people on prolonged exposure and discomfort to people with heart disease with short exposure.",
-                                    "Very Poor" = "May cause respiratory illness to the people on prolonged exposution. Effect may be more pronounced in people with lung and heart diseases.",
-                                    "Severe" = "May cause respiratory effects on even healthy people and serious health impacts on people with lung/heart diseases. The health impacts may be experienced even during light physical activity."),
+    names = c("Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe"),
+    actions = c("Minimal Impact", "May cause minor breathing discomfort to sensitive people.", 
+                "May cause breathing discomfort to people with lung disease such as asthma and discomfort to people with heart disease, children and older adults.",
+                "May cause breathing discomfort to people on prolonged exposure and discomfort to people with heart disease with short exposure.",
+                "May cause respiratory illness to the people on prolonged exposution. Effect may be more pronounced in people with lung and heart diseases.",
+                "May cause respiratory effects on even healthy people and serious health impacts on people with lung/heart diseases. The health impacts may be experienced even during light physical activity."),
     colors = c("#006600", "#009900", "#FFFF00", "#FF6600", "#CC0000", "#990000")
   )
   
@@ -74,3 +75,22 @@ load_aqi_info <- function(country, path = "data/aqi_info.rds") {
   aqi_info <- readRDS(file = path)
   return(aqi_info[[country]])
 }
+
+read_covid_measures <- function(
+  path = "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/Delivery/OHA-COVID-policy-responses.csv"
+) {
+  # Reading COVID-19 Data
+  covid_measures <- readr::read_csv(file = path) %>% 
+    mutate(
+      # Parsing dates.
+      start_date = lubridate::parse_date_time(x = start_date, 
+                                              orders = "d!-m!-y! H!:M!",
+                                              tz = "UTC"),
+      # Parsing End Date. 
+      end_date = if_else(end_date == "Ongoing",
+                         # If a measure is still happening, it's included as "Ongoing", so replacing that with lubridate::now().
+                         lubridate::now(tzone="UTC"),
+                         lubridate::parse_date_time(x = end_date, orders = "d!-m!-y! H!:M!", tz = "UTC"))
+    )
+}
+

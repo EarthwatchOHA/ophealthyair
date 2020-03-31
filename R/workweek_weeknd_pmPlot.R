@@ -31,8 +31,7 @@ workweek_weeknd_pmPlot <- function(
     labs(x = "Hour of Day (UTC)",
          y = "PM 2.5 μg/m3", 
          title = "Average Particulate Matter 2.5 Concentration by Hour of Day Weekday vs. Weekend",
-         subtitle = "Hourly Max and Min Ribbon",
-         color = "Sensor",
+         color = "Sensor Label",
          linetype = "Day Type")
   
   return(workweek_weeknd_plot)  

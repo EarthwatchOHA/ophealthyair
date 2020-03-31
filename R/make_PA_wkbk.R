@@ -14,7 +14,7 @@ make_PA_wkbk <- function(
   meta_df <- sensor_catalog %>%
     filter(label %in% sensors) %>% 
     dplyr::select(-c("MAC ID", "id", "Person of Contact", "Purchasing Email",
-                     "Program", "Picture of Sensor", "Collocated", "Sensor Type"))
+                     "Program", "Picture of Sensor", "Collocated", "Sensor Type", "Contact email"))
   
   openxlsx::addWorksheet(wb, sheetName = "Sensor Info")
   openxlsx::writeData(wb, sheet = "Sensor Info", x = meta_df)
@@ -34,7 +34,8 @@ make_PA_wkbk <- function(
     
     # Add aqi column to data_prepped dfs.
     data_prepped <- purrr::map2(.x = data_prepped, .y = aqi_prepped, 
-                                .f = function(x, y) left_join(x = x, y = rename(y, aqi = 2), by = "datetime"))
+                                .f = function(x, y) left_join(x = x, y = rename(y, aqi = 2), by = "datetime") %>% 
+                                  rename("US AQI" = aqi))
   } else {
     # Removing aqi column from data dictionary.
     data_dict_df <- data_dict_df %>% 

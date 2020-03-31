@@ -9,7 +9,7 @@ output_path <- "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy 
 programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US", "Boston" = "US")
 
 # Getting all sensor data.
-source("scripts/ingest_all.R")
+pat_list <- load_pat_list()
 
 # Named partner_site and not site because can't use filter(site == site)
 sensor_catalog <- load_SensorCatalog()
@@ -52,7 +52,8 @@ for (i in 1:length(sites)) {
   try({uncompressed_dir <- 
     make_site_dataviz_pkg(site = partner_site, outliercount_list = outliercount_list, 
                           sensor_aqi_list = sensor_aqi_list, sensor_catalog = sensor_catalog,
-                          use_aqi = use_aqi, aqi_country = aqi_country, output_directory = output_path)})
+                          use_aqi = use_aqi, aqi_country = aqi_country, output_directory = output_path)
   # Deletes uncompressed dir.
   unlink(uncompressed_dir, recursive = TRUE)
+  })
 }

@@ -1,11 +1,8 @@
 # This script creates a data delivery workbook for a selected site.
 library(dplyr)
 library(ggplot2)
-library(ophealthyair)
-source("R/qaqc-util.R")
-source("R/viz-util.R")
-source("R/delivery-util.R")
 devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+devtools::load_all()
 
 programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US", "Boston" = "US")
 
@@ -13,9 +10,6 @@ programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US", 
 # Need to do for every site.
 # Make two scripts. One for all sites, and one for a specific site.
 partner_site = "IMD Lodhi Road"
-
-# Getting all sensor data.
-source("scripts/ingest_all.R")
 
 # Loads sensor_catalog
 sensor_catalog <- load_SensorCatalog()
@@ -25,6 +19,7 @@ site_sensors <- sensor_catalog %>%
 
 pat_list <- load_pat_list()[site_sensors$label]
 
+# QAQC data. See vignettes/qaqc_pt1.rmd for details.
 source("scripts/qaqc.R")  
 
 # Get program from site.
