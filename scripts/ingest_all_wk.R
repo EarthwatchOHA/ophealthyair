@@ -20,4 +20,5 @@ sensor_catalog <- fetch_SensorCatalog() %>% filter(site != "Undeployed")
 
 pas <- fetch_pas(countryCodes = countries_coded)
 
-fetch_pat_list(sensor_labels = sensor_catalog$label, sensor_ids = sensor_catalog$id, pas = pas)
+fetch_pat_list(sensor_labels = sensor_catalog$label, sensor_ids = sensor_catalog$id,
+               pas = pas, output_path = "data/pat_list_wk.rds")
