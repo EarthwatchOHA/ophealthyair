@@ -27,7 +27,7 @@ MazamaSpatialUtils::setSpatialDataDir("data/spatial")
 pct_cutoff <- 97
 rsquared_cutoff <- 0.80
 
-pat_list <- load_pat_list()
+pat_list <- load_pat_list("data/pat_list_wk.rds")
 
 if (params$program != "All") {
   sensor_catalog <- load_SensorCatalog() %>%
