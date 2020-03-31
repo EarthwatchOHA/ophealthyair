@@ -1,0 +1,332 @@
+---
+title: "Proxy Calibration Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+This notebook is a primary attempt to establish a strong system for proxy calibrating Operation Healthy Air's deployed Purple Air sensor networks in Boston, India, Sri Lanka, and Southern California.
+
+Proxy sensor calibration is the use of one or more sensors collocated with a reference monitor to generate a correction model that can be deployed to sensors nearby, under the assumption that sensors are precisely inaccurate, that is they given the same inputs, they generate the same measurements, and that nearby air quality conditions are similar enough to the conditions at the reference monitor that the model is still applicable.
+
+The goal of proxy calibration is to minimize the need for sensor collocation while maximizing the accuracy of sensor readings.
+
+```{r environment setup, include=FALSE}
+library(dplyr)
+devtools::load_all()
+devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+library(ropenaq)
+library(ggplot2)
+source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-equation.R")
+
+knitr::opts_knit$set(root.dir = here::here())
+```
+
+```{r, include=FALSE}
+sensor_catalog <- load_SensorCatalog()
+
+bos_sensors <-  filter(sensor_catalog, site == "Von Hillern St (MassDEP)") 
+bos_pats <- load_pat_list()[bos_sensors$label] 
+
+
+ind_sensors <- filter(sensor_catalog, site == "IMD Lodhi Road")
+ind_pats <- load_pat_list()[ind_sensors$label]
+```
+
+```{r loading openaq api data, eval=FALSE, include=FALSE}
+# Trying to get data via openaq package and API.
+# Openaq package is failing to read API.
+# Trying for Lodhi Road data. Not currently working.
+cities_tableIndia <- aq_locations(country="IN", city = "Delhi", parameter = "pm25")
+
+lodhi_data <- aq_measurements(country = "IN", city = "Delhi", location = "Lodhi+Road%2C+Delhi+-+IMD")
+
+# Trying Boston
+cities_tableUS <- aq_locations(country="US", city = "Boston-Cambridge-Quincy", parameter = "pm25")
+
+roxbury_data <- aq_measurements(location = "Boston+-+Roxbury", parameter = "pm25")
+
+test <- aq_latest(city = "Boston-Cambridge-Quincy", parameter = "pm25")
+```
+
+```{r reading openaq downloaded datasets, include=FALSE}
+bos_ref_data <- readr::read_csv(file = "inputs/roxbury-openaq-20200318.csv", col_names = TRUE)
+
+ind_ref_data <- readr::read_csv(file = "inputs/lodhi-road-openaq-20200318.csv")
+```
+
+Alright, so now we'll run through proxy-calibration on two different collocated sensor networks, Lodhi Road in India and Roxbury Mass.
+
+Calibrations to test:
+
+1. Generating a simple linear model for each sensor using just PM.
+
+2. Generating a multivariate linear model for each sensor using RH and Temperature.
+
+```{r not qc data modeling, include=FALSE}
+bos_data <- purrr::map(bos_pats,
+                          .f = function(x) pat_aggregateOutlierCounts(x) %>% # Aggregating PA data to hourly data.
+                            mutate(pm25 = (pm25_A_mean + pm25_B_mean) / 2) %>% # Averaging A + B
+                            select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% # Subsetting columns 
+  bind_rows(.id = "sensor_label") %>% # Combining list into df.
+  group_by(sensor_label) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    # Joining time series to reference monitor data.
+    data = purrr::map(.x = data,
+                           .f  = function(x) inner_join(x, select(bos_ref_data, utc, "ref_value" = value),
+                                                        by = c("datetime" = "utc"))),
+    # Creating models.
+    basic_linear = purrr::map(.x = data,
+                              .f = function(x) lm(ref_value ~ pm25, data = x)),
+    ref_and_temp = purrr::map(.x = data, 
+                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
+    ref_and_humidity = purrr::map(.x = data, 
+                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
+    all_vars = purrr::map(.x = data,
+                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
+    )
+
+ind_data <- purrr::map(ind_pats,
+                          .f = function(x) pat_aggregateOutlierCounts(x) %>% # Aggregating PA data to hourly data.
+                            mutate(pm25 = (pm25_A_mean + pm25_B_mean) / 2) %>% # Averaging A + B
+                            select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% # Subsetting columns 
+  bind_rows(.id = "sensor_label") %>% # Combining list into df.
+  group_by(sensor_label) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    # Joining time series to reference monitor data.
+    data = purrr::map(.x = data,
+                           .f  = function(x) inner_join(x, select(ind_ref_data, utc, "ref_value" = value),
+                                                        by = c("datetime" = "utc"))),
+    # Creating models.
+    basic_linear = purrr::map(.x = data,
+                              .f = function(x) lm(ref_value ~ pm25, data = x)),
+    ref_and_temp = purrr::map(.x = data, 
+                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
+    ref_and_humidity = purrr::map(.x = data, 
+                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
+    all_vars = purrr::map(.x = data,
+                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
+    )
+
+```
+
+
+```{r not qc model summaries, message=FALSE, echo=FALSE}
+  
+source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-mutate-functions.R")
+
+bos_mod_summs <- bos_data %>% 
+  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"), values_to = "models") %>% 
+  mutate(
+    slope = purrr::map(.x = models, .f = extract_slope),
+    intercept = purrr::map(.x = models, .f = extract_int),
+    p_value = purrr::map(.x = models, .f = extract_p),
+    R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
+    adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
+    ) %>%
+  select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
+  tidyr::unnest()
+
+bos_mod_summs %>%
+  arrange(sensor_label, desc(R2)) %>%
+  mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
+  knitr::kable()
+
+ind_mod_summs <- ind_data %>% 
+  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"), values_to = "models") %>% 
+  mutate(
+    slope = purrr::map(.x = models, .f = extract_slope),
+    intercept = purrr::map(.x = models, .f = extract_int),
+    p_value = purrr::map(.x = models, .f = extract_p),
+    R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
+    adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
+    ) %>%
+  select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
+  tidyr::unnest()
+
+ind_mod_summs %>%
+  arrange(sensor_label, desc(R2)) %>%
+  mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
+  knitr::kable()
+```
+
+What we see is that consistently, our multivariate models accounting for both temperature and humidity have higher R2 than using just the simple linear model, or using only temperature or humidity. 
+
+
+Now I want to make the same models again using our QAQC'd data to test the efficacy of our QAQC process.
+
+```{r qc modeling, include=FALSE}
+
+bos_qc_data <- purrr::map(bos_pats, .f = function(x) pat_qaqc_outliercounts(x) %>% 
+                     select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% 
+  bind_rows(.id = "sensor_label") %>% # Combining list into df.
+  group_by(sensor_label) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    # Joining time series to reference monitor data.
+    data = purrr::map(.x = data,
+                           .f  = function(x) inner_join(x, select(bos_ref_data, utc, "ref_value" = value),
+                                                        by = c("datetime" = "utc"))),
+    # Creating models.
+    basic_linear = purrr::map(.x = data,
+                              .f = function(x) lm(ref_value ~ pm25, data = x)),
+    ref_and_temp = purrr::map(.x = data, 
+                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
+    ref_and_humidity = purrr::map(.x = data, 
+                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
+    all_vars = purrr::map(.x = data,
+                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
+    )
+
+ind_qc_data <- purrr::map(ind_pats, .f = function(x) pat_qaqc_outliercounts(x) %>% 
+                     select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% 
+  bind_rows(.id = "sensor_label") %>% # Combining list into df.
+  group_by(sensor_label) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    # Joining time series to reference monitor data.
+    data = purrr::map(.x = data,
+                           .f  = function(x) inner_join(x, select(ind_ref_data, utc, "ref_value" = value),
+                                                        by = c("datetime" = "utc"))),
+    # Creating models.
+    basic_linear = purrr::map(.x = data,
+                              .f = function(x) lm(ref_value ~ pm25, data = x)),
+    ref_and_temp = purrr::map(.x = data, 
+                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
+    ref_and_humidity = purrr::map(.x = data, 
+                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
+    all_vars = purrr::map(.x = data,
+                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
+    )
+
+
+```
+
+```{r qc model summaries, message=FALSE, echo=FALSE}
+
+bos_qc_mod_summs <- bos_qc_data %>% 
+  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"),
+                      values_to = "models") %>% 
+    mutate(
+      slope = purrr::map(.x = models, .f = extract_slope),
+      intercept = purrr::map(.x = models, .f = extract_int),
+      p_value = purrr::map(.x = models, .f = extract_p),
+      R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
+      adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
+      ) %>%
+    select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
+    tidyr::unnest()
+
+bos_qc_mod_summs %>%
+    arrange(sensor_label, desc(R2)) %>%
+    mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
+    knitr::kable()
+
+ind_qc_mod_summs <- ind_qc_data %>% 
+  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"),
+                      values_to = "models") %>% 
+    mutate(
+      slope = purrr::map(.x = models, .f = extract_slope),
+      intercept = purrr::map(.x = models, .f = extract_int),
+      p_value = purrr::map(.x = models, .f = extract_p),
+      R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
+      adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
+      ) %>%
+    select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
+    tidyr::unnest()
+  
+ind_qc_mod_summs %>% 
+  arrange(sensor_label, desc(R2)) %>%
+  mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
+  knitr::kable()
+
+```
+
+Once again, we see that our models controlling for all measured variables have consistently the highest R2's.
+
+I'd like to now look at the comparison between the not qc'ed and qc'ed data to see if our QAQC process is producing more accurate results.
+
+```{r Raw QC Comparison, message=FALSE, echo=FALSE}
+full_join(bos_mod_summs, bos_qc_mod_summs,
+          by = c("sensor_label", "model_type"), suffix = c("_raw", "_qc")) %>%
+  select(sensor_label, model_type, R2_raw, R2_qc) %>% 
+  arrange(sensor_label, desc(R2_qc)) %>% 
+  knitr::kable()
+
+full_join(ind_mod_summs, ind_qc_mod_summs,
+          by = c("sensor_label", "model_type"), suffix = c("_raw", "_qc")) %>%
+  select(sensor_label, model_type, R2_raw, R2_qc) %>% 
+  arrange(sensor_label, desc(R2_qc)) %>% 
+  knitr::kable()
+```
+
+Interestingly, our quality controlled models typically underperform compared to our raw models. I would hypothesize this is the result of either:
+
+* using smaller datasets in our qc controlled models. 
+
+* the imputation of outliers in our qc process generating synthetic data.
+
+Many of our models appear to functioning relatively well, though there does appear to be a fairly wide range of R2 values for our models. The question we now face is, given multiple collocated sensors for a given reference monitor, which sensor (and associated model), do we select as our proxy.
+
+## Model Selection
+
+The simplest answer to this question is to select the model with the highest R2. 
+
+```{r Model Correction Visualization, message=FALSE, echo=FALSE}
+bos_proxy_sensor <- bos_qc_mod_summs %>% 
+  ungroup() %>% 
+  filter(R2 == (max(R2))) %>%
+  pull(sensor_label)
+
+bos_mods <- as.list(bos_data$all_vars)
+
+names(bos_mods) <- bos_data$sensor_label
+
+bos_correction <- bos_mods[[bos_proxy_sensor]]
+
+ind_proxy_sensor <- ind_qc_mod_summs %>% 
+  ungroup() %>% 
+  filter(R2 == (max(R2))) %>%
+  pull(sensor_label)
+
+ind_mods <- as.list(ind_data$all_vars)
+
+names(ind_mods) <- ind_data$sensor_label
+
+ind_correction <- ind_mods[[ind_proxy_sensor]]
+
+broom::augment(bos_correction) %>%
+  ggplot(aes(x = 1:nrow(.))) +
+  geom_point(aes(y = pm25), color = "red", position = "jitter", alpha = 0.7) +
+  geom_point(aes(y = .fitted), color = "blue", position = "jitter", alpha = 0.7) +
+  geom_point(aes(y = ref_value), color = "green", position = "jitter", alpha = 0.7) +
+  labs(
+    x = "Observation Number",
+    y = "µg/m3",
+    title = "Correction Factor",
+    caption = "Red: Raw \n Green: Reference Monitor \n Blue: Calibrated Values",
+    subtitle = bos_proxy_sensor
+  )
+
+broom::augment(ind_correction) %>%
+  ggplot(aes(x = 1:nrow(.))) +
+  geom_point(aes(y = pm25), color = "red", position = "jitter", alpha = 0.7) +
+  geom_point(aes(y = .fitted), color = "blue", position = "jitter", alpha = 0.7) +
+  geom_point(aes(y = ref_value), color = "green", position = "jitter", alpha = 0.7) +
+  labs(
+    x = "Observation Number",
+    y = "µg/m3",
+    title = "Correction Factor",
+    caption = "Red: Raw \n Green: Reference Monitor \n Blue: Calibrated Values",
+    subtitle = ind_proxy_sensor
+  )
+
+```
+
+### Calibration Equations
+
+Boston: `r model_equation(bos_correction)`
+
+India: `r model_equation(ind_correction)`
