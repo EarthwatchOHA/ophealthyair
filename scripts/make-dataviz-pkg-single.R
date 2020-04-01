@@ -9,7 +9,7 @@ programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US", 
 # Named partner_site and not sire because can't use filter(site == site)
 # Need to do for every site.
 # Make two scripts. One for all sites, and one for a specific site.
-partner_site = "IMD Lodhi Road"
+partner_site <- "Waldorf School, Belmont MA"
 
 # Loads sensor_catalog
 sensor_catalog <- load_SensorCatalog()
@@ -32,10 +32,22 @@ if (aqi_country == "IN") {
 } else if( aqi_country == "US") {
   use_aqi <- TRUE
 }
+
+# Attempting to converting data timezone to local time. 
+# Timezone set to NULL.
+timezone <- NULL
+# If possible extract timezone from pat_list meta.
+for (i in 1:length(pat_list)) {
+  try({
+   timezone <- pat_extract_TZ(pat_list[[i]]) 
+  })
+}
+
 # Make data-vis-pkg dir, as well as identical compressed dir, and returns filepath to uncompressed dir.
 uncompressed_dir <- 
   make_site_dataviz_pkg(site = partner_site, outliercount_list = outliercount_list, 
                         sensor_aqi_list = sensor_aqi_list, sensor_catalog = sensor_catalog,
-                        use_aqi = use_aqi, aqi_country = aqi_country)
+                        use_aqi = use_aqi, aqi_country = aqi_country, timezone = timezone)
+
 # Delete uncompressed dir.
 unlink(uncompressed_dir, recursive = TRUE)
