@@ -5,7 +5,8 @@ make_site_dataviz_pkg <- function(
     sensor_aqi_list,
     sensor_catalog,
     output_directory = "outputs/data-viz-pkgs/",
-    use_aqi = FALSE
+    use_aqi = FALSE,
+    timezone = NULL
 ) {
   # Outputs data delivery package for given site using  sensor_catalog, and previously generated pat_list.
   # TODO: Error control system for site in Sensor Catalog.
@@ -18,42 +19,52 @@ make_site_dataviz_pkg <- function(
   # Creating directory directories.
   dir.create(dir_path)
   
+  # Prepping AQI Data for Workbook.
+  # Extracts data from sensor_aqi_list.
+  aqi_data <- purrr::map(.x = sensor_aqi_list, .f = function(x) x$data)
   
+  # Converting Timezone if timezone given, and valid.
+  if(!is.null(timezone) && timezone %in% OlsonNames()) {
+    outliercount_list <- outliercount_list %>% 
+      purrr::map(.f = function(x) mutate(x, 
+                                         datetime = lubridate::with_tz(time = datetime,
+                                                                       tzone = timezone)))
+    aqi_data <- aqi_data %>% 
+      purrr::map(.f = function(x) mutate(x,
+                                         datetime = lubridate::with_tz(time = datetime,
+                                                                       tzone = timezone)))
+  }
   #--------------------------------------------------------------------------------------------------------
   # Creating workbook:
   
   # Instantiates and fills workbook object.
   wb <- make_PA_wkbk(outliercount_list = outliercount_list, sensor_catalog = sensor_catalog, 
-                       sensor_aqi_list = sensor_aqi_list, use_aqi = use_aqi)
+                       aqi_data = aqi_data, use_aqi = use_aqi)
   
   #--------------------------------------------------------------------------------------------------------
-  # Generating Plots:
-  # Prepping agg_list for visualizations.
-  df_viz_prepped <- .outliercount_list_viz_prep(outliercount_list = outliercount_list)
-  
   # Getting unique sensors.
-  sensors <- unique(df_viz_prepped$sensor)
-  # Making vector of colors to use for sensors
+  sensors <- names(outliercount_list)
+  # Making palette of colors to use across for sensors
   sensor_colors <- RColorBrewer::brewer.pal(n = length(sensors), name = "Dark2")
   # Naming the vector with sensors.
   names(sensor_colors) <- sensors
   
+  # Generating Plots:
   #--------------------------------------------------------------------------------------------------------
   # Calendar Plots:
   calendar_plots_list <- purrr::map2(.x = outliercount_list, .y = names(outliercount_list),
-                              .f = function(x,y, aqi_country) select(x, date = datetime, pm25) %>%
-                                .calendar_pmPlot(sensor_name = y, aqi_country = aqi_country),
-                              aqi_country = aqi_country)
-  
+                                     .f = function(x,y, aqi_country) select(x, date = datetime, pm25) %>%
+                                       .calendar_pmPlot(sensor_name = y, aqi_country = aqi_country),
+                                     aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
   # Plot 2
-  plot2 <- workweek_weeknd_pmPlot(data = df_viz_prepped, sensor_colors = sensor_colors,
+  plot2 <- workweek_weeknd_pmPlot(outliercount_list = outliercount_list, sensor_colors = sensor_colors,
                                   aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
   # Plot 3
-  dayplots <- day_of_week_pmPlotlist(data = df_viz_prepped, sensor_colors = sensor_colors,
+  dayplots <- day_of_week_pmPlotlist(outliercount_list = outliercount_list, sensor_colors = sensor_colors,
                                      aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
@@ -128,39 +139,7 @@ make_site_dataviz_pkg <- function(
   return(dir_path)
   
 }
-
-
 #--------------------------------------------------------------------------------------------------------
-# Util Data Preparation Function.
-.outliercount_list_viz_prep <- function(outliercount_list) {
-  # Preparing preliminary datasets.
-  # TODO: Refactor
-  # Days during the workweek.
-  workweek <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
-  # Days of the weekend.
-  weekend <- c("Saturday", "Sunday")
-  
-  # Readying plotting set.
-  viz_prepped <- outliercount_list %>% 
-    # Convert to df.
-    bind_rows(.id = "sensor") %>%
-    # Filter by minimum observation count of 20.
-    filter(min_count >= 20,
-           !is.na(pm25)) %>% 
-    mutate(
-      # Mean, mean maximum, mean minimum of A and B channels
-      pm_channels_max = (pm25_A_max+pm25_B_max)/2,
-      pm_channels_min = (pm25_A_min+pm25_B_min)/2,
-      # Getting day of week for each hour.
-      weekday = weekdays(datetime),
-      # Extracting hour.
-      hour = format(datetime, "%H"),
-      # Workweek 1 or 0.
-      workweek = factor(if_else(weekday %in% workweek, "workweek", "weekend"))) 
-  
-  return(viz_prepped)
-}
-
 .calendar_pmPlot <- function(data, sensor_name, aqi_country, data_thresh = 75) {
   # Loading AQI Info
   aqi_info <- load_aqi_info(country = aqi_country)

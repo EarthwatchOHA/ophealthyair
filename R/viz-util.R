@@ -76,7 +76,7 @@ load_aqi_info <- function(country, path = "data/aqi_info.rds") {
   return(aqi_info[[country]])
 }
 
-read_covid_measures <- function(
+load_covid_measures <- function(
   path = "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/Delivery/OHA-COVID-policy-responses.csv"
 ) {
   # Reading COVID-19 Data
@@ -92,5 +92,6 @@ read_covid_measures <- function(
                          lubridate::now(tzone="UTC"),
                          lubridate::parse_date_time(x = end_date, orders = "d!-m!-y! H!:M!", tz = "UTC"))
     )
+  return(covid_measures)
 }
 

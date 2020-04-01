@@ -1,6 +1,6 @@
 make_PA_wkbk <- function(
   outliercount_list,
-  sensor_aqi_list,
+  aqi_data,
   sensor_catalog,
   use_aqi = FALSE) {
   # TODO: Add DocString
@@ -24,16 +24,14 @@ make_PA_wkbk <- function(
                                 dplyr::mutate(temperature = (temperature_mean - 32) * 5/9) %>% # Fahrenheit to Celsius
                                 dplyr::select("datetime", "temperature",
                                               "humidity" = "humidity_mean", "pm25"))
-      
+  # Extracting datasets timezone.    
+  timezone <- attr(data_prepped[[1]][["datetime"]], "tzone")
   # Loading data dictionary 
-  data_dict_df <- .load_data_dictionary()
+  data_dict_df <- .load_data_dictionary(timezone = timezone)
   
   if (use_aqi) {
-    # Extracts data from sensor_aqi_list.
-    aqi_prepped <- purrr::map(.x = sensor_aqi_list, .f = function(x) x$data)
-    
     # Add aqi column to data_prepped dfs.
-    data_prepped <- purrr::map2(.x = data_prepped, .y = aqi_prepped, 
+    data_prepped <- purrr::map2(.x = data_prepped, .y = aqi_data, 
                                 .f = function(x, y) left_join(x = x, y = rename(y, aqi = 2), by = "datetime") %>% 
                                   rename("US AQI" = aqi))
   } else {
@@ -45,8 +43,8 @@ make_PA_wkbk <- function(
   # Creates a joined time series of PM data for each sensor at site (column names are sensor labels).
   pm_joined <- data_prepped %>% 
     purrr::reduce(full_join, by = "datetime") %>% 
-    dplyr::select("datetime (UTC)" = datetime, contains("pm")) %>% 
-    `colnames<-`(c("datetime (UTC)", names(outliercount_list))) %>% 
+    dplyr::select(datetime, contains("pm")) %>% 
+    `colnames<-`(c("datetime", names(outliercount_list))) %>% 
     dplyr::mutate_if(is.numeric, round, digits = 2)
   # Writing to workbook
   openxlsx::addWorksheet(wb, sheetName = "PM Side-by-Side")
@@ -62,7 +60,7 @@ make_PA_wkbk <- function(
       ) %>% 
       # Removing total datetime for date and time variables. 
       dplyr::select(-datetime) %>%
-      dplyr::select(date, "time (UTC)" = time, "humidity %" =  humidity, "temperature (C)" = temperature,
+      dplyr::select(date, time, "humidity %" =  humidity, "temperature (C)" = temperature,
                     "PM2.5 μg/m3" =  pm25, everything()) %>% 
       # Rounding numeric variables.
       dplyr::mutate_if(is.numeric, round, digits = 2)
@@ -95,8 +93,14 @@ make_PA_wkbk <- function(
 }
 
 #-------------------------------------------------------------------------------------------------------------------------
-.load_data_dictionary <- function() {
+.load_data_dictionary <- function(timezone) {
   # Helper function loads data dictionary for addition to workbook.
   data_dict_sheet <- readxl::read_excel(path = "inputs/data-viz-package-wkbk-dictionary.xlsx")
+  
+  time_row <- which(data_dict_sheet[, "Column Heading"] == "time")
+  
+  data_dict_sheet[["Description"]][[time_row]] <- paste(data_dict_sheet[["Description"]][[time_row]],
+                                                        timezone, sep = " ")
+  
   return(data_dict_sheet)
 }

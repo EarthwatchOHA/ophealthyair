@@ -48,11 +48,21 @@ for (i in 1:length(sites)) {
   # QAQC data. See vignettes/qaqc_pt1.rmd for details.
   source("scripts/qaqc.R")  
   
+  # Attempting to converting data timezone to local time. 
+  # Timezone set to NULL.
+  timezone <- NULL
+  # If possible extract timezone from pat_list meta.
+  for (i in 1:length(pat_list)) {
+    try({
+      timezone <- pat_extract_TZ(pat_list[[i]]) 
+    })
+  }
   # Makes data-vis-pkg dir, as well as identical compressed dir, and returns filepath to uncompressed dir.
   try({uncompressed_dir <- 
     make_site_dataviz_pkg(site = partner_site, outliercount_list = outliercount_list, 
                           sensor_aqi_list = sensor_aqi_list, sensor_catalog = sensor_catalog,
-                          use_aqi = use_aqi, aqi_country = aqi_country, output_directory = output_path)
+                          use_aqi = use_aqi, aqi_country = aqi_country, output_directory = output_path,
+                          timezone = timezone)
   # Deletes uncompressed dir.
   unlink(uncompressed_dir, recursive = TRUE)
   })

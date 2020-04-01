@@ -8,15 +8,10 @@ covid_measures_hourlyavg_Plotlist <- function(
 # Outputs a named list of plots for each element of outliercount_list.
 # Plots are error bar plots showing median, first, and third quantiles of hourly averages for pre and post COVID-19 measures applicable to the site and program region.
 # Plots also include a table of the COVID measures and dates that measures are in place.  
+  
   sensors <- sensor_catalog %>%
     dplyr::filter(site == partner_site,
                   label %in% names(outliercount_list))
-  
-  covid_measures <- read_covid_measures() %>%
-    # Filters covid_measures so either site or program matches sensor catalog.
-    dplyr::filter(site == partner_site | site %in% sensors$Program) %>% 
-    # Creates interval out of start and end dates for measures.
-    dplyr::mutate(interval = lubridate::interval(start = start_date, end = end_date))
   
   data <- outliercount_list %>%
     dplyr::bind_rows(.id = "label") %>% 
@@ -28,6 +23,25 @@ covid_measures_hourlyavg_Plotlist <- function(
       # Workweek 1 or 0.
       workweek = factor(if_else(weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), "workweek", "weekend"))
     )
+  
+  # Getting Timezone from data.
+  timezone <- attr(data$datetime,"tzone")
+  
+  # Getting Covid Measures
+  covid_measures <- load_covid_measures() %>%
+    # Filters covid_measures so either site or program matches sensor catalog.
+    dplyr::filter(site == partner_site | site %in% sensors$Program) %>% 
+    # Creates interval out of start and end dates for measures.
+    dplyr::mutate(interval = lubridate::interval(start = start_date, end = end_date))
+  
+  # Converting Timezones if necessary.
+  if (timezone != "UTC") {
+    covid_measures <- covid_measures %>% 
+      mutate(
+        start_date = lubridate::with_tz(start_date, tzone = timezone),
+        end_date = lubridate::with_tz(end_date, tzone = timezone)
+      )
+  }
   
   for (i in 1:nrow(covid_measures)) {
     # Creates a binary logical column for each response measure, whether it was in-place or not for an hourly measurement.
@@ -42,6 +56,7 @@ covid_measures_hourlyavg_Plotlist <- function(
       # Using covid_measures column, if 0 (no measures in place), then false, else TRUE (measure/s in place).
       in_place = factor(ifelse(covid_measures == 0, FALSE, TRUE), labels = c("No Response Measures", "Response Measures in Place"))
       )
+  
   # Groups data depending on facet_workweek value.
   if(facet_workweek) {
     data <- data %>%
@@ -82,7 +97,7 @@ covid_measures_hourlyavg_Plotlist <- function(
                         "Point represents Hourly Median",
                         "Number of Hourly Measurements are above each Bar",
                         sep = "\n"),
-        x = "Hour of the Day (UTC)",
+        x = paste("Hour of Day ", "(", timezone, ")", sep = ""),
         y = "PM25 µg/m3",
         color = "COVID-19 Response Measures in Place",
         fill = "COVID-19 Response Measures in Place"
