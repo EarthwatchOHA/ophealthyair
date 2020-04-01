@@ -18,6 +18,7 @@ devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
 library(ropenaq)
 library(ggplot2)
 source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-equation.R")
+source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-mutate-functions.R")
 
 knitr::opts_knit$set(root.dir = here::here())
 ```
@@ -114,8 +115,6 @@ ind_data <- purrr::map(ind_pats,
 
 
 ```{r not qc model summaries, message=FALSE, echo=FALSE}
-  
-source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-mutate-functions.R")
 
 bos_mod_summs <- bos_data %>% 
   tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"), values_to = "models") %>% 
@@ -159,9 +158,12 @@ Now I want to make the same models again using our QAQC'd data to test the effic
 
 ```{r qc modeling, include=FALSE}
 
-bos_qc_data <- purrr::map(bos_pats, .f = function(x) pat_qaqc_outliercounts(x) %>% 
-                     select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% 
-  bind_rows(.id = "sensor_label") %>% # Combining list into df.
+pat_list <- load_pat_list()[append(bos_sensors$label, ind_sensors$label)]
+source("scripts/qaqc.R")
+
+bos_qc_data <- outliercount_list[bos_sensors$label] %>%
+  bind_rows(.id = "sensor_label") %>% 
+  select(sensor_label, datetime, pm25, temperature = temperature_mean, humidity = humidity_mean) %>% 
   group_by(sensor_label) %>% 
   tidyr::nest() %>% 
   mutate(
@@ -180,9 +182,9 @@ bos_qc_data <- purrr::map(bos_pats, .f = function(x) pat_qaqc_outliercounts(x) %
                           .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
     )
 
-ind_qc_data <- purrr::map(ind_pats, .f = function(x) pat_qaqc_outliercounts(x) %>% 
-                     select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% 
-  bind_rows(.id = "sensor_label") %>% # Combining list into df.
+ind_qc_data <- outliercount_list[ind_sensors$label] %>%
+  bind_rows(.id = "sensor_label") %>% 
+  select(sensor_label, datetime, pm25, temperature = temperature_mean, humidity = humidity_mean) %>% 
   group_by(sensor_label) %>% 
   tidyr::nest() %>% 
   mutate(
