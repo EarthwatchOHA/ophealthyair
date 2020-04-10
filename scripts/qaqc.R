@@ -22,13 +22,18 @@ pat_list <- pat_list[pat_test]
 # Checks elements of pat_list whether time series is empty or not.
 empty_test <- purrr::map_lgl(.x = pat_list, .f = function(x) nrow(pat_extractData(x)) > 1)
 pat_list <- pat_list[empty_test]
-# Generating hourly aggregated pat list with lots of additional data.
-outliercount_list <- purrr::map(pat_list, pat_qaqc_outliercounts) %>% 
-  # Removing observations that didn't pass our QAQC.
-  purrr::map(.f = .qaqc_filtering)
 
-# Creating AirSensor object. This allows us to generate AQI.
-sensor_list <- purrr::map(pat_list,
-                             .f = function(x) (pat_outliers(x, replace = TRUE, showPlot = FALSE) %>% pat_createAirSensor()))
-# Using NowCast AQI algorithm to create AirSensor objects with AQI. 
-sensor_aqi_list <- purrr::map(sensor_list, .f = PWFSLSmoke::monitor_aqi)
+# 1. Apply pat_qc to remove invalid readings.
+pat_list_qcd <- pat_list %>% 
+  purrr::map(.f = pat_qc)
+
+# Generating hourly aggregated pat list with lots of additional data.
+aggstats_list <- purrr::map(pat_list_qcd, pat_qaqc_outliercounts)
+
+sensor_list <- pat_list_qcd %>% 
+  # Creating AirSensor object. This allows us to generate AQI.
+  purrr::map(.f = function(x) (pat_outliers(x, replace = TRUE, showPlot = FALSE) %>%
+                               pat_createAirSensor(parameter = "pm25",
+                                                     channel = "ab")))
+
+rm(pa_ii_sensors, pat_test, empty_test)

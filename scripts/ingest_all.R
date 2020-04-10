@@ -18,7 +18,7 @@ countries_coded <- c("United States", "India", "Sri Lanka") %>%
 # TODO: Add way to specify program.
 sensor_catalog <- fetch_SensorCatalog() %>% filter(site != "Undeployed")
 
-pas <- fetch_pas(countryCodes = countries_coded)
+pas <- fetch_pas(countryCodes = countries_coded, lookbackDays = 21)
 
 # Setting up startdate and enddate variables.
 default_startdate <- 20180101

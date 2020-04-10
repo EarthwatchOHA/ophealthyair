@@ -29,9 +29,18 @@ pat_qaqc_agg <- function(pat, period = "1 hour",
 
 
 .qaqc_filtering <- function(df) {
-  output <- filter(df,
-                   !(min_count < 20),
-                   !(pm25_p < 0.0001 & mean_diff > 10),
-                   !(pm25 < 100 & mean_diff > 20)
-  )
+  
+  output <- df %>% 
+               mutate(
+                 temperature = ifelse(min_count < 20,
+                                              NA,
+                                              temperature_mean),
+                 humidity = ifelse(min_count < 20,
+                                           NA,
+                                           humidity_mean),
+                 pm25 = ifelse(min_count < 20 | (pm25_p < 0.0001 & mean_diff > 10) | (pm25 < 100 & mean_diff > 20),
+                                       NA,
+                                       pm25)
+               )
+  return(output)
 } 

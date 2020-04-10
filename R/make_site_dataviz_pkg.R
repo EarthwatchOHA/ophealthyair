@@ -1,15 +1,39 @@
+#' @title 
+#' 
+#' \code{make_site_dataviz_pkg} returns character string of absolute path of the datavisualization package directory.
+#' 
+#' @description 
+#' 
+#' @param site
+#' @param aggstats_list
+#' @param sensor_aqi_list
+#' @param sensor_catalog
+#' @param aqi_country
+#' @param output_directory
+#' @param use_aqi
+#' @param timezone
+#' @param facet_covid_workweek
+#' 
+#' @return
+#' 
+#' @examples 
+
+
 make_site_dataviz_pkg <- function(
     site,
-    aqi_country,
-    outliercount_list,
-    sensor_aqi_list,
+    aggstats_list,
+    sensor_list,
     sensor_catalog,
+    aqi_country,
     output_directory = "outputs/data-viz-pkgs/",
     use_aqi = FALSE,
-    timezone = NULL
+    timezone = NULL,
+    facet_covid_workweek = FALSE
 ) {
   # Outputs data delivery package for given site using  sensor_catalog, and previously generated pat_list.
   # TODO: Error control system for site in Sensor Catalog.
+  # TODO: Refactor.
+  # TODO: Add additional function arguments as ... argument.
   
   # Making folder for site_deliverable
   output_dir <- output_directory
@@ -20,16 +44,20 @@ make_site_dataviz_pkg <- function(
   dir.create(dir_path)
   
   # Prepping AQI Data for Workbook.
-  # Extracts data from sensor_aqi_list.
-  aqi_data <- purrr::map(.x = sensor_aqi_list, .f = function(x) x$data)
+  # Converts sensor_list to aqi_list.
+  if(use_aqi) {
+    sensor_list <- purrr::map(.x = sensor_list, .f = function(x) PWFSLSmoke::monitor_aqi(x) %>% PWFSLSmoke::monitor_extractData())
+  } else {
+    sensor_list <- purrr::map(.x = sensor_list, .f = function(x) PWFSLSmoke::monitor_extractData(x))
+  }
   
   # Converting Timezone if timezone given, and valid.
   if(!is.null(timezone) && timezone %in% OlsonNames()) {
-    outliercount_list <- outliercount_list %>% 
+    aggstats_list <- aggstats_list %>% 
       purrr::map(.f = function(x) mutate(x, 
                                          datetime = lubridate::with_tz(time = datetime,
                                                                        tzone = timezone)))
-    aqi_data <- aqi_data %>% 
+    sensor_list <- sensor_list %>% 
       purrr::map(.f = function(x) mutate(x,
                                          datetime = lubridate::with_tz(time = datetime,
                                                                        tzone = timezone)))
@@ -38,87 +66,85 @@ make_site_dataviz_pkg <- function(
   # Creating workbook:
   
   # Instantiates and fills workbook object.
-  wb <- make_PA_wkbk(outliercount_list = outliercount_list, sensor_catalog = sensor_catalog, 
-                       aqi_data = aqi_data, use_aqi = use_aqi)
+  wb <- make_PA_wkbk(aggstats_list = aggstats_list,
+                     sensor_catalog = sensor_catalog, 
+                     aqi_data = sensor_list,
+                     use_aqi = use_aqi)
   
   #--------------------------------------------------------------------------------------------------------
-  # Getting unique sensors.
-  sensors <- names(outliercount_list)
-  # Making palette of colors to use across for sensors
-  sensor_colors <- RColorBrewer::brewer.pal(n = length(sensors), name = "Dark2")
-  # Naming the vector with sensors.
-  names(sensor_colors) <- sensors
+    # Making palette of colors to use across for sensors
+  sensor_colors <- RColorBrewer::brewer.pal(n = length(names(aggstats_list)),
+                                            name = "Dark2")
+  # Naming the vector with sensor labels.
+  names(sensor_colors) <- names(aggstats_list)
   
   # Generating Plots:
   #--------------------------------------------------------------------------------------------------------
   # Calendar Plots:
-  calendar_plots_list <- purrr::map2(.x = outliercount_list, .y = names(outliercount_list),
+  calendar_plots_list <- purrr::map2(.x = aggstats_list,
+                                     .y = names(aggstats_list),
                                      .f = function(x,y, aqi_country) select(x, date = datetime, pm25) %>%
                                        .calendar_pmPlot(sensor_name = y, aqi_country = aqi_country),
                                      aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
   # Plot 2
-  plot2 <- workweek_weeknd_pmPlot(outliercount_list = outliercount_list, sensor_colors = sensor_colors,
-                                  aqi_country = aqi_country)
+  workweek_plot <- workweek_weeknd_pmPlot(aggstats_list = aggstats_list,
+                                          sensor_colors = sensor_colors,
+                                          aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
   # Plot 3
-  dayplots <- day_of_week_pmPlotlist(outliercount_list = outliercount_list, sensor_colors = sensor_colors,
+  dayplots <- day_of_week_pmPlotlist(aggstats_list = aggstats_list,
+                                     sensor_colors = sensor_colors,
                                      aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
+  # Preparing COVID Measures Dataframe.
+  sensors <- dplyr::filter(sensor_catalog, 
+                           label %in% names(aggstats_list))
+  
+  # Cannot use site == site in filtering, so:
+  partner_site <- site
+  
+  # Getting Covid Measures
+  covid_measures <- load_covid_measures() %>%
+    # Creates interval out of start and end dates for measures.
+    dplyr::mutate(interval = lubridate::interval(start = start_date,
+                                                 end = end_date)) %>% 
+    # Filters covid_measures so either site or program matches sensor catalog.
+    dplyr::filter(site == partner_site | site %in% sensors$Program)
+  
   # COVID Plots
-  covid_hourlyavg_plots_list <- covid_measures_hourlyavg_Plotlist(outliercount_list = outliercount_list,
-                                                                   sensor_catalog = sensor_catalog,
-                                                                   partner_site = site, facet_workweek = FALSE)
+  covid_hourlyavg_plots_list <- covid_measures_hourlyavg_Plotlist(aggstats_list = aggstats_list, 
+                                                                  covid_measures = covid_measures,
+                                                                  facet_workweek = facet_covid_workweek)
   
   #--------------------------------------------------------------------------------------------------------
   # Preparing ppt object.
+  ppt <- make_viz_ppt(sensors = names(aggstats_list),
+                      sensor_colors = sensor_colors,
+                      sensor_catalog = sensor_catalog,
+                      workweek_plot = workweek_plot,
+                      dayplots_list = dayplots,
+                      calendar_plots_list = calendar_plots_list)
   
-  # First creating a table for the first slide to show sensor metadata.
-  ppt_sensor_meta <- sensor_catalog %>% 
-    dplyr::filter(label %in% sensors) %>% 
-    dplyr::select("label", "Indoor/Outdoor", "Deploy Date", "Deploy Time", `Deploy Location Description`,
-                  "Latitude (decimal degrees)", "Longitude (decimal degrees)", "Elevation (m)",
-                  `Height from ground (m)`, "Sensor Orientation (degrees and Cardinal Orientation)") %>% 
-    flextable::flextable()
-  
-  for (i in 1:length(sensors)) {
-     sensor <- sensors[[i]]
-     ppt_sensor_meta <- flextable::bg(x = ppt_sensor_meta, i = i, bg = sensor_colors[[i]])
-  }
-  
-  ppt <- officer::read_pptx() %>%
+  # Adding COVID Measures Slide
+  # Creating flextable.
+  covid_measures_flex <- covid_measures %>% 
+    select(-interval) %>% 
+    flextable::qflextable()
+  # Adding slide. 
+  ppt <- ppt %>% 
     officer::add_slide(layout = "Title Slide", master = "Office Theme") %>% 
-    officer::ph_with(value = ppt_sensor_meta, location = officer::ph_location_fullsize()) %>% 
-    officer::add_slide(layout = "Title Slide", master = "Office Theme") %>% 
-    officer::ph_with(rvg::dml(ggobj = plot2), location = officer::ph_location_fullsize())
-  
-  for (i in 1:length(dayplots)) {
-    ppt <- ppt %>% 
-      officer::add_slide(layout = "Title Slide", master = "Office Theme") %>% 
-      officer::ph_with(rvg::dml(ggobj = dayplots[[i]]), location = officer::ph_location_fullsize())
-  }
-  
-  for (i in 1:length(calendar_plots_list)) {
-    filename <- paste(names(calendar_plots_list)[[1]], "calendar_plot.png", sep = "-")
-    path <- paste("outputs", "graphics", filename, sep = "/")
-    lattice::trellis.device(device="png", filename=path)
-    print(calendar_plots_list[[i]])
-    dev.off()
-    
-    ppt <- ppt %>% 
-      officer::add_slide(layout = "Title Slide", master = "Office Theme") %>%
-      officer::ph_with(value = officer::external_img(src = path), location = officer::ph_location_fullsize())
-  }
+    officer::ph_with(value = covid_measures_flex, location = officer::ph_location_fullsize())
   
   # Saving COVID Plots to ppt
   # COVID Measures Hourly Averages
   for (i in 1:length(covid_hourlyavg_plots_list)) {
     ppt <- ppt %>% 
       officer::add_slide(layout = "Title Slide", master = "Office Theme") %>% 
-      officer::ph_with(rvg::dml(ggobj = ggpubr::as_ggplot(covid_hourlyavg_plots_list[[i]])),
+      officer::ph_with(rvg::dml(ggobj = covid_hourlyavg_plots_list[[i]]),
                                 location = officer::ph_location_fullsize())
   }
   #--------------------------------------------------------------------------------------------------------

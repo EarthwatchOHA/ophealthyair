@@ -1,19 +1,30 @@
+#' @title 
+#' 
+#' @description 
+#' 
+#' @param aggstats_list
+#' @param covid_measures
+#' @param partner_site
+#' @param covid_path
+#' @param facet_workweek
+#' 
+#' @returns
+#' 
+#' @example
+#'
+#'
+
 covid_measures_hourlyavg_Plotlist <- function(
-  outliercount_list,
-  sensor_catalog,
-  partner_site,
+  aggstats_list,
+  covid_measures,
   covid_path = NULL,
   facet_workweek = FALSE 
 ) {
 # Outputs a named list of plots for each element of outliercount_list.
 # Plots are error bar plots showing median, first, and third quantiles of hourly averages for pre and post COVID-19 measures applicable to the site and program region.
 # Plots also include a table of the COVID measures and dates that measures are in place.  
-  
-  sensors <- sensor_catalog %>%
-    dplyr::filter(site == partner_site,
-                  label %in% names(outliercount_list))
-  
-  data <- outliercount_list %>%
+
+  data <- aggstats_list %>%
     dplyr::bind_rows(.id = "label") %>% 
     dplyr::mutate(
       # Extracting hour.
@@ -26,13 +37,6 @@ covid_measures_hourlyavg_Plotlist <- function(
   
   # Getting Timezone from data.
   timezone <- attr(data$datetime,"tzone")
-  
-  # Getting Covid Measures
-  covid_measures <- load_covid_measures() %>%
-    # Filters covid_measures so either site or program matches sensor catalog.
-    dplyr::filter(site == partner_site | site %in% sensors$Program) %>% 
-    # Creates interval out of start and end dates for measures.
-    dplyr::mutate(interval = lubridate::interval(start = start_date, end = end_date))
   
   # Converting Timezones if necessary.
   if (timezone != "UTC") {
@@ -70,17 +74,17 @@ covid_measures_hourlyavg_Plotlist <- function(
     dplyr::summarize(
       pm_median = median(pm25, na.rm=TRUE),
       pm_mean = mean(pm25, na.rm=TRUE),
-      pm_min = min(pm25),
-      pm_max = max(pm25),
-      pm_25q = quantile(pm25, probs = .25),
-      pm_75q = quantile(pm25, probs = .75),
+      pm_min = min(pm25, na.rm = TRUE),
+      pm_max = max(pm25, na.rm = TRUE),
+      pm_25q = quantile(pm25, probs = .25, na.rm = TRUE),
+      pm_75q = quantile(pm25, probs = .75, na.rm = TRUE),
       N = n()
     )
   
   plots_list <- list()
   
-  for (i in 1:nrow(sensors)) {
-    sensor <- sensors[["label"]][[i]]
+  for (i in 1:length(names(aggstats_list))) {
+    sensor <- names(aggstats_list)[[i]]
     plots_list[[sensor]] <- data %>%
       dplyr::filter(label == sensor) %>% 
       ggplot2::ggplot(aes(x = hour)) +
@@ -91,9 +95,9 @@ covid_measures_hourlyavg_Plotlist <- function(
                     position = "dodge", alpha = 0.6) +
       ggplot2::geom_text(aes(label = N, y = pm_75q, colour = in_place), position = ggplot2::position_dodge(width=0.9), vjust=-0.25) +
       ggplot2::labs(
-        title = "Purple Air Sensor Readings Hour of Day Averages Pre and Post COVID-19 Measures",
+        title = "Purple Air Sensor Readings Hour of Day Averages Pre and During COVID-19 Measures",
         subtitle = sensor,
-        caption = paste("Bars represent 1st and 3rd Quartile",
+        caption = paste("Bars represent 25th and 75th Percentiles",
                         "Point represents Hourly Median",
                         "Number of Hourly Measurements are above each Bar",
                         sep = "\n"),
@@ -110,15 +114,6 @@ covid_measures_hourlyavg_Plotlist <- function(
    plots_list <- purrr::map(plots_list, .f = function(plt) plt + ggplot2::facet_grid(workweek~.))
   }
   
-  covid_table <- gridExtra::tableGrob(dplyr::select(covid_measures, 
-                                                    "Response Measures" = response_measure,
-                                                    "Start" = start_date, "End" = end_date),
-                                      rows=NULL)
-
-  grobs_list <- purrr::map(.x = plots_list,
-                     .f = function(plt) gridExtra::arrangeGrob(plt, covid_table,
-                                                               layout_matrix = rbind(c(1, 1, 2),
-                                                                                     c(1, 1, NA))))
   
-  return(grobs_list)
+  return(plots_list)
 }

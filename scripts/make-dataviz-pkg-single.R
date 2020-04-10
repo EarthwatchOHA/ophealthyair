@@ -1,6 +1,7 @@
 # This script creates a data delivery workbook for a selected site.
 library(dplyr)
 library(ggplot2)
+library(lubridate)
 devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
 devtools::load_all()
 
@@ -9,7 +10,7 @@ programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US", 
 # Named partner_site and not sire because can't use filter(site == site)
 # Need to do for every site.
 # Make two scripts. One for all sites, and one for a specific site.
-partner_site <- "Waldorf School, Belmont MA"
+partner_site <- "OSC program"
 
 # Loads sensor_catalog
 sensor_catalog <- load_SensorCatalog()
@@ -45,9 +46,10 @@ for (i in 1:length(pat_list)) {
 
 # Make data-vis-pkg dir, as well as identical compressed dir, and returns filepath to uncompressed dir.
 uncompressed_dir <- 
-  make_site_dataviz_pkg(site = partner_site, outliercount_list = outliercount_list, 
-                        sensor_aqi_list = sensor_aqi_list, sensor_catalog = sensor_catalog,
-                        use_aqi = use_aqi, aqi_country = aqi_country, timezone = timezone)
+  make_site_dataviz_pkg(site = partner_site, aggstats_list = aggstats_list, 
+                        sensor_list = sensor_list, sensor_catalog = sensor_catalog,
+                        use_aqi = use_aqi, aqi_country = aqi_country, timezone = timezone,
+                        facet_covid_workweek = TRUE)
 
 # Delete uncompressed dir.
 unlink(uncompressed_dir, recursive = TRUE)
