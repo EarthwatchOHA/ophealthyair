@@ -6,7 +6,7 @@
 #' 
 #' @param site
 #' @param aggstats_list
-#' @param sensor_aqi_list
+#' @param sensor_list
 #' @param sensor_catalog
 #' @param aqi_country
 #' @param output_directory
@@ -72,13 +72,29 @@ make_site_dataviz_pkg <- function(
                      use_aqi = use_aqi)
   
   #--------------------------------------------------------------------------------------------------------
-    # Making palette of colors to use across for sensors
+  # Making palette of colors to use across for sensors
   sensor_colors <- RColorBrewer::brewer.pal(n = length(names(aggstats_list)),
                                             name = "Dark2")
   # Naming the vector with sensor labels.
   names(sensor_colors) <- names(aggstats_list)
   
   # Generating Plots:
+  #------------------------------------------------------------------------------
+  # Sensor Metadata FlexTable
+  sensor_meta_flex <- sensor_catalog %>% 
+    dplyr::filter(label %in% sensors) %>% 
+    dplyr::select("label", "Indoor/Outdoor", "Deploy Date", "Deploy Time",
+                  `Deploy Location Description`, "Latitude (decimal degrees)",
+                  "Longitude (decimal degrees)", "Elevation (m)", 
+                  `Height from ground (m)`,
+                  "Sensor Orientation (degrees and Cardinal Orientation)") %>% 
+    flextable::flextable()
+  
+  for (i in 1:length(sensors)) {
+    sensor <- sensors[[i]]
+    sensor_meta_flex <- flextable::bg(x = sensor_meta_flex, i = i,
+                                      bg = sensor_colors[[i]])
+  }
   #--------------------------------------------------------------------------------------------------------
   # Calendar Plots:
   calendar_plots_list <- purrr::map2(.x = aggstats_list,
@@ -88,13 +104,13 @@ make_site_dataviz_pkg <- function(
                                      aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
-  # Plot 2
+  # Workweek/Weekend Plot
   workweek_plot <- workweek_weeknd_pmPlot(aggstats_list = aggstats_list,
                                           sensor_colors = sensor_colors,
                                           aqi_country = aqi_country)
   
   #--------------------------------------------------------------------------------------------------------
-  # Plot 3
+  # Days of Week Plot List
   dayplots <- day_of_week_pmPlotlist(aggstats_list = aggstats_list,
                                      sensor_colors = sensor_colors,
                                      aqi_country = aqi_country)
@@ -114,6 +130,12 @@ make_site_dataviz_pkg <- function(
                                                  end = end_date)) %>% 
     # Filters covid_measures so either site or program matches sensor catalog.
     dplyr::filter(site == partner_site | site %in% sensors$Program)
+ 
+  # Adding COVID Measures Slide
+  # Creating flextable.
+  covid_measures_flex <- covid_measures %>% 
+    select(-interval) %>% 
+    flextable::qflextable()
   
   # COVID Plots
   covid_hourlyavg_plots_list <- covid_measures_hourlyavg_Plotlist(aggstats_list = aggstats_list, 
@@ -122,36 +144,21 @@ make_site_dataviz_pkg <- function(
   
   #--------------------------------------------------------------------------------------------------------
   # Preparing ppt object.
-  ppt <- make_viz_ppt(sensors = names(aggstats_list),
-                      sensor_colors = sensor_colors,
-                      sensor_catalog = sensor_catalog,
-                      workweek_plot = workweek_plot,
-                      dayplots_list = dayplots,
-                      calendar_plots_list = calendar_plots_list)
-  
-  # Adding COVID Measures Slide
-  # Creating flextable.
-  covid_measures_flex <- covid_measures %>% 
-    select(-interval) %>% 
-    flextable::qflextable()
-  # Adding slide. 
-  ppt <- ppt %>% 
-    officer::add_slide(layout = "Title Slide", master = "Office Theme") %>% 
-    officer::ph_with(value = covid_measures_flex, location = officer::ph_location_fullsize())
-  
-  # Saving COVID Plots to ppt
-  # COVID Measures Hourly Averages
-  for (i in 1:length(covid_hourlyavg_plots_list)) {
-    ppt <- ppt %>% 
-      officer::add_slide(layout = "Title Slide", master = "Office Theme") %>% 
-      officer::ph_with(rvg::dml(ggobj = covid_hourlyavg_plots_list[[i]]),
-                                location = officer::ph_location_fullsize())
-  }
+  ppt <- make_viz_ppt(
+    sensor_meta_flex,
+    workweek_plot,
+    dayplots,
+    calendar_plots_list, 
+    covid_measures_flex,
+    covid_hourlyavg_plots_list
+    )
+
   #--------------------------------------------------------------------------------------------------------
   # Saving objects to folder. 
   
   # Workbook
   filename_wkbk <- paste(dir_path, "aqworkbook.xlsx", sep = "/")
+  
   openxlsx::saveWorkbook(wb, file = filename_wkbk)
   
   print(ppt, target = paste(dir_path, "visualizations.pptx", sep = "/"))
@@ -163,8 +170,8 @@ make_site_dataviz_pkg <- function(
   zip::zipr(zipfile = paste(dir_path, ".zip", sep = ""), files = files2zip)
   
   return(dir_path)
-  
 }
+
 #--------------------------------------------------------------------------------------------------------
 .calendar_pmPlot <- function(data, sensor_name, aqi_country, data_thresh = 75) {
   # Loading AQI Info
