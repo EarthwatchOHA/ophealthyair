@@ -1,107 +1,45 @@
 #' @title
 #'
 #' @description Create a powerpoint with slides for every graphical object
-#'   inputted.
+#'   inputted, in the order that they are given as arguments.
 #'
-#' @param ... Objects of class "ggplot", "openair", "flextable", or a list
-#'   containing only objects of these sort.
+#' @param x a named list of ggplot, flextable, or openair objects, or lists of
+#'   those objects.
+#' @param ppt an Officer Powerpoint  object.
 #'
-#' @return an Officer Powerpoint Object.
+#' @return an Officer Powerpoint object.
 #'
 #' @example
 #'
 #' 
 
 make_viz_ppt <- function(
-  ...
+  x,
+  ppt
 ) {
-  
-  # Creating  ppt object.
-  ppt <- officer::read_pptx()
   
 #------------------------------------------------------------------------------
   
-  dots <- list(...)
-  
-  for (i in 1:length(dots)) {
-    if(class(dots[[i]]) == "list") {
-      for(j in 1:length(dots[[i]])) {
-        if(any(class(dots[[i]][[j]]) == c("gg", "ggplot"))) {
-          plot <- dots[[i]][[j]]  
-          ppt <- ppt %>% 
-            officer::add_slide(layout = "Title Slide",
-                               master = "Office Theme") %>%
-            officer::ph_with(rvg::dml(ggobj = plot),
-                             location = officer::ph_location_fullsize())
+  for (i in 1:length(x)) {
+    
+    # If x is a list
+    if ( is(x[[i]], "list") ) {
+      
+      # Add every element as a slide.
+      for (j in 1:length(x[[i]])) {
         
-        } else if (class(dots[[i]][[j]]) == "openair") {
-          plot <- dots[[i]][[j]][["plot"]]
-          # Saving to cache file as png files.
-          path <- paste("outputs", "graphics", "cache", "viz_ppt.png", sep = "/")
-          
-          lattice::trellis.device(device="png", filename=path)
-          
-          print(plot)
-          dev.off()
-          # Loading png files into ppt slides.
-          ppt <- ppt %>% 
-            officer::add_slide(layout = "Title Slide",
-                               master = "Office Theme") %>%
-            officer::ph_with(value = officer::external_img(src = path),
-                             location = officer::ph_location_fullsize())
-          
-        } else if (class(dots[[i]][[j]] == "flextable")) {
-          
-          table <- dots[[i]][[j]]
-          
-          ppt <- ppt %>%
-            officer::add_slide(layout = "Title Slide",
-                               master = "Office Theme") %>% 
-            officer::ph_with(value = table,
-                             location = officer::ph_location_fullsize())  
-        } else {
-          stop("object class not recognized. Only objects of class ggplot, openair,
-           flextable, or a list of those objects.")
-        }
+        ppt <- add_ppt_img_slide(
+          graphic = x[[i]][[j]],
+          ppt = ppt
+        )
       }
-    } else if(any(class(dots[[i]]) == c("gg", "ggplot"))) {
-    
-    plot <- dots[[i]]
       
-    # Adding ggplot to powerpoint
-    ppt <- ppt %>% 
-      officer::add_slide(layout = "Title Slide",
-                         master = "Office Theme") %>% 
-      officer::ph_with(rvg::dml(ggobj = plot),
-                       location = officer::ph_location_fullsize())
-    
-    } else if(class(dots[[i]]) == "openair") {
-      plot <- dots[[i]][["plot"]]
-      # Saving to cache file as png files.
-      path <- paste("outputs", "graphics", "cache", "viz_ppt.png", sep = "/")
-      
-      lattice::trellis.device(device="png", filename=path)
-      
-      print(plot)
-      dev.off()
-      # Loading png files into ppt slides.
-      ppt <- ppt %>% 
-        officer::add_slide(layout = "Title Slide",
-                           master = "Office Theme") %>%
-        officer::ph_with(value = officer::external_img(src = path),
-                         location = officer::ph_location_fullsize())
-    
-    } else if (class(dots[[i]]) == "flextable") {
-      table <- dots[[i]]  
-      ppt <- ppt %>%
-        officer::add_slide(layout = "Title Slide",
-                           master = "Office Theme") %>% 
-        officer::ph_with(value = table,
-                         location = officer::ph_location_fullsize())  
-    
     } else {
-      stop("object class not recognized. Only objects of class ggplot, openair,
-           flextable, or a list of those objects.")
+    
+      ppt <- add_ppt_img_slide(
+        graphic = x[[i]],
+        ppt = ppt
+      )
     }
   }
   return(ppt)
