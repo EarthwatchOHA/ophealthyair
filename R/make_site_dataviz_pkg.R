@@ -7,7 +7,6 @@
 #' @param site
 #' @param aggstats_list
 #' @param sensor_list
-#' @param sensor_catalog
 #' @param aqi_country
 #' @param output_directory
 #' @param use_aqi
@@ -23,10 +22,9 @@ make_site_dataviz_pkg <- function(
     site,
     aggstats_list,
     sensor_list,
-    sensor_catalog,
     aqi_country,
     output_directory = "outputs/data-viz-pkgs/",
-    use_aqi = FALSE,
+    include_aqi_data = FALSE,
     timezone = NULL,
     facet_covid_workweek = FALSE
 ) {
@@ -43,12 +41,19 @@ make_site_dataviz_pkg <- function(
   # Creating directory directories.
   dir.create(dir_path)
   
+  sensor_catalog <- load_SensorCatalog()
+  
+  sensors <- dplyr::filter(sensor_catalog, 
+                           label %in% names(aggstats_list))
+  
   # Prepping AQI Data for Workbook.
   # Converts sensor_list to aqi_list.
-  if(use_aqi) {
-    sensor_list <- purrr::map(.x = sensor_list, .f = function(x) PWFSLSmoke::monitor_aqi(x) %>% PWFSLSmoke::monitor_extractData())
+  if( include_aqi_data ) {
+    aqi_data <- purrr::map(.x = sensor_list,
+                           .f = function(x) PWFSLSmoke::monitor_aqi(x) %>%
+                             sensor_extractData())
   } else {
-    sensor_list <- purrr::map(.x = sensor_list, .f = function(x) PWFSLSmoke::monitor_extractData(x))
+    aqi_data <- NULL
   }
   
   # Converting Timezone if timezone given, and valid.
@@ -57,10 +62,8 @@ make_site_dataviz_pkg <- function(
       purrr::map(.f = function(x) mutate(x, 
                                          datetime = lubridate::with_tz(time = datetime,
                                                                        tzone = timezone)))
-    sensor_list <- sensor_list %>% 
-      purrr::map(.f = function(x) mutate(x,
-                                         datetime = lubridate::with_tz(time = datetime,
-                                                                       tzone = timezone)))
+    sensor_list <- purrr::map(.x = sensor_list,
+                              .f = function(x) sensor_convertTZ(x, to = timezone))
   }
   #--------------------------------------------------------------------------------------------------------
   # Creating workbook:
@@ -68,8 +71,7 @@ make_site_dataviz_pkg <- function(
   # Instantiates and fills workbook object.
   wb <- make_PA_wkbk(aggstats_list = aggstats_list,
                      sensor_catalog = sensor_catalog, 
-                     aqi_data = sensor_list,
-                     use_aqi = use_aqi)
+                     aqi_data = aqi_data)
   
   #--------------------------------------------------------------------------------------------------------
   # Making palette of colors to use across for sensors
@@ -79,49 +81,138 @@ make_site_dataviz_pkg <- function(
   names(sensor_colors) <- names(aggstats_list)
   
   # Generating Plots:
+  visualizations <- vector("character")
   #------------------------------------------------------------------------------
   # Sensor Metadata FlexTable
-  sensor_meta_flex <- sensor_catalog %>% 
-    dplyr::filter(label %in% sensors) %>% 
-    dplyr::select("label", "Indoor/Outdoor", "Deploy Date", "Deploy Time",
-                  `Deploy Location Description`, "Latitude (decimal degrees)",
-                  "Longitude (decimal degrees)", "Elevation (m)", 
-                  `Height from ground (m)`,
-                  "Sensor Orientation (degrees and Cardinal Orientation)") %>% 
+  meta_colnames <- c(
+    "label",
+    "Indoor/Outdoor",
+    "First Measurement",
+    "Most Recent Measurement",
+    "Location Description",
+    "Latitude (decimal degrees)",
+    "Longitude (decimal degrees)",
+    "Elevation (m)", 
+    "Height from ground (m)",
+    "Sensor Orientation (degrees and Cardinal Orientation)"
+  )
+  
+  obs_range <- aggstats_list %>% 
+    purrr::map(.f = function(x) dplyr::summarize(x, 
+                                                 `First Measurement` = min(datetime),
+                                                 `Most Recent Measurement` = max(datetime))) %>% 
+    dplyr::bind_rows(.id = "label")
+                
+  
+  sensor_meta_flex <- sensors %>% 
+    dplyr::left_join(obs_range, by = "label") %>%  
+    dplyr::select(one_of(meta_colnames)) %>% 
     flextable::flextable()
   
-  for (i in 1:length(sensors)) {
+  for (i in 1:nrow(sensors)) {
     sensor <- sensors[[i]]
     sensor_meta_flex <- flextable::bg(x = sensor_meta_flex, i = i,
                                       bg = sensor_colors[[i]])
   }
+  
+  # Adding to viz
+  visualizations <- append(visualizations, "sensor_meta_flex")
   #--------------------------------------------------------------------------------------------------------
   # Calendar Plots:
-  calendar_plots_list <- purrr::map2(.x = aggstats_list,
-                                     .y = names(aggstats_list),
-                                     .f = function(x,y, aqi_country) select(x, date = datetime, pm25) %>%
-                                       .calendar_pmPlot(sensor_name = y, aqi_country = aqi_country),
-                                     aqi_country = aqi_country)
+  #--------------------------------------------------------------------------------------------------------
+  .calendar_pmPlot <- function(data, sensor_name, aqi_country, data_thresh = 75) {
+    # Loading AQI Info
+    aqi_info <- load_aqi_info(country = aqi_country)
+    
+    # Generating plot.
+    plot <- openair::calendarPlot(data,
+                          pollutant = "pm25",
+                          main = "Daily Average Particulate Matter 2.5",
+                          xlab = sensor_name,
+                          ylab = "Particulate Matter 2.5",
+                          cols = aqi_info$colors, labels = aqi_info$names,
+                          breaks = aqi_info$breaks_24, data.thresh = data_thresh)
+    invisible(plot)
+  }
   
+  calendarPlots_list <- purrr::map2(.x = sensor_list,
+                                    .y = names(sensor_list),
+                                    .f = function(x,y, aqi_country) sensor_extractData(x) %>% 
+                                      select(date = datetime, pm25 = 2) %>%
+                                       .calendar_pmPlot(sensor_name = y,
+                                                        aqi_country = aqi_country),
+                                    aqi_country = aqi_country)
+  
+  if( length(calendarPlots_list) > 0 ) {
+    # Adding to viz
+    visualizations <- append(x = visualizations, "calendarPlots_list")
+  
+  }
   #--------------------------------------------------------------------------------------------------------
   # Workweek/Weekend Plot
   workweek_plot <- workweek_weeknd_pmPlot(aggstats_list = aggstats_list,
                                           sensor_colors = sensor_colors,
                                           aqi_country = aqi_country)
   
-  #--------------------------------------------------------------------------------------------------------
-  # Days of Week Plot List
-  dayplots <- day_of_week_pmPlotlist(aggstats_list = aggstats_list,
-                                     sensor_colors = sensor_colors,
-                                     aqi_country = aqi_country)
+  if( is.ggplot(workweek_plot) ) {
+    # Adding to viz
+    visualizations <- append(x = visualizations, "workweek_plot")
+    
+  }
   
+  #--------------------------------------------------------------------------------------------------------
+  # Day of Week List of Hour of Day Averages
+  day_plots <- day_of_week_pmPlotlist(sensor_list = sensor_list,
+                                      aqi_country = aqi_country,
+                                      sensor_colors = sensor_colors,
+                                      sd_ribbon = 2)
+    
+  if( length(day_plots) > 0 ) {
+    # Adding to viz
+    visualizations <- append(x = visualizations, "day_plots")
+    
+  }
+  #--------------------------------------------------------------------------------------------------------  
+    
+  safe_pollutionRose_dash <- 
+    purrr::safely(.f = function(x) sensor_pollutionRose_dash(x,
+                                                             aqi_country = "US", 
+                                                             include_map = FALSE, 
+                                                             max_noaa_dist = 3), 
+                  otherwise = NA,
+                  quiet = FALSE)  
+  
+  rose_list <- purrr::map(.x = sensor_list,
+                          .f = safe_pollutionRose_dash)
+  
+  
+  rose_list <- rose_list[purrr::map_lgl(rose_list,
+                                        .f = function(x) !is.na(x$result))]
+  
+  if( length(rose_list) > 0 ) {
+    # Adding to viz
+    visualizations <- append(x = visualizations, "rose_list")
+    
+  }
+  
+  if ( length(rose_list) < length(sensor_list) ) {
+    names(sensor_list)[!names(sensor_list) %in% names(rose_list)]
+    print(paste("No rose plots generated for:",
+                names(sensor_list)[!names(sensor_list) %in% names(rose_list)])
+          )
+  }
+  #--------------------------------------------------------------------------------------------------------  
+  # Stacked Day of Week AQI Bar Charts
+  day_bar_plots <- purrr::map(.x = sensor_list, .f = day_of_week_aqiBar,
+                                    aqi_country = aqi_country, position = "stack")
+  
+  if( length(day_bar_plots ) > 0 ) {
+    # Adding to viz
+    visualizations <- append(x = visualizations, "day_bar_plots")
+  
+  }  
   #--------------------------------------------------------------------------------------------------------
   # Preparing COVID Measures Dataframe.
-  sensors <- dplyr::filter(sensor_catalog, 
-                           label %in% names(aggstats_list))
-  
-  # Cannot use site == site in filtering, so:
-  partner_site <- site
   
   # Getting Covid Measures
   covid_measures <- load_covid_measures() %>%
@@ -129,29 +220,32 @@ make_site_dataviz_pkg <- function(
     dplyr::mutate(interval = lubridate::interval(start = start_date,
                                                  end = end_date)) %>% 
     # Filters covid_measures so either site or program matches sensor catalog.
-    dplyr::filter(site == partner_site | site %in% sensors$Program)
+    dplyr::filter(site == !!site | site %in% sensors$Program)
  
-  # Adding COVID Measures Slide
   # Creating flextable.
   covid_measures_flex <- covid_measures %>% 
     select(-interval) %>% 
     flextable::qflextable()
   
+  # Adding to viz
+  visualizations <- append(visualizations, "covid_measures_flex")
+  
   # COVID Plots
-  covid_hourlyavg_plots_list <- covid_measures_hourlyavg_Plotlist(aggstats_list = aggstats_list, 
-                                                                  covid_measures = covid_measures,
-                                                                  facet_workweek = facet_covid_workweek)
+  covid_plots <- covid_measures_hourlyavg_Plotlist(aggstats_list = aggstats_list, 
+                                                   covid_measures = covid_measures,
+                                                   facet_workweek = facet_covid_workweek)
+  
+  if( length(covid_plots) > 0 ) {
+    # Adding to viz
+    visualizations <- append(x = visualizations, "covid_plots")
+    
+  }
   
   #--------------------------------------------------------------------------------------------------------
   # Preparing ppt object.
-  ppt <- make_viz_ppt(
-    sensor_meta_flex,
-    workweek_plot,
-    dayplots,
-    calendar_plots_list, 
-    covid_measures_flex,
-    covid_hourlyavg_plots_list
-    )
+  ppt <- officer::read_pptx()
+  
+  viz_ppt <- make_viz_ppt(mget(visualizations), ppt = ppt)
 
   #--------------------------------------------------------------------------------------------------------
   # Saving objects to folder. 
@@ -172,17 +266,3 @@ make_site_dataviz_pkg <- function(
   return(dir_path)
 }
 
-#--------------------------------------------------------------------------------------------------------
-.calendar_pmPlot <- function(data, sensor_name, aqi_country, data_thresh = 75) {
-  # Loading AQI Info
-  aqi_info <- load_aqi_info(country = aqi_country)
-  
-  # Generating plot.
-  openair::calendarPlot(data,
-                        pollutant = "pm25",
-                        main = "Daily Average Particulate Matter 2.5",
-                        xlab = sensor_name,
-                        ylab = "Particulate Matter 2.5",
-                        cols = aqi_info$colors, labels = aqi_info$names,
-                        breaks = aqi_info$breaks_24, data.thresh = data_thresh)
-}
