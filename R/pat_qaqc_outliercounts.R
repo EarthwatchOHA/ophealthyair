@@ -57,12 +57,15 @@ pat_qaqc_outliercounts <- function(
   # QAQC Steps:
   # 2. Count and replace outliers in dataset.
   # 3. Aggregate data to hourly.
-  pat_qcd_outliercounts <- pat_aggregateOutlierCounts(pat, replace = c("pm25_A", "pm25_B"), period = period,
-                                                      windowSize = windowSize, thresholdMin = thresholdMin)
+  pat_qcd_outliercounts <- pat_aggregateOutlierCounts(pat,
+                                                      replace = c("pm25_A", "pm25_B"),
+                                                      period = period,
+                                                      windowSize = windowSize,
+                                                      thresholdMin = thresholdMin)
   # 4. Apply PurpleAirQC_hourly_AB_01.
-  pat_qaqcd_outliercounts <- PurpleAirQC_hourly_AB_01_revised(pat_qcd_outliercounts,
-                                                              returnAllColumns = TRUE,
-                                                              min_count = min_count) 
+  pat_qaqcd_outliercounts <- PurpleAirQC_hourly_AB_01(pat_qcd_outliercounts,
+                                                      returnAllColumns = TRUE,
+                                                      min_count = min_count) 
   
   return(pat_qaqcd_outliercounts)
 }
