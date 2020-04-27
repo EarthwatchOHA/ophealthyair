@@ -38,10 +38,9 @@
 
 make_PA_wkbk <- function(
   aggstats_list,
-  aqi_data,
+  aqi_data = NULL,
   sensor_catalog,
-  data_dict_path = "inputs/data-viz-package-wkbk-dictionary.xlsx",
-  use_aqi = FALSE) {
+  data_dict_path = "inputs/data-viz-package-wkbk-dictionary.xlsx") {
   # TODO: Add DocString
   
   # Creating excel workbook obect.
@@ -51,24 +50,27 @@ make_PA_wkbk <- function(
   
   # Vulnerable to changes in Sensor_catalog.
   meta_df <- sensor_catalog %>%
-    filter(label %in% sensors) %>% 
+    dplyr::filter(label %in% sensors) %>% 
     dplyr::select(-c("MAC ID", "id", "Person of Contact", "Purchasing Email",
-                     "Program", "Picture of Sensor", "Collocated", "Sensor Type", "Contact email"))
+                     "Program", "Sensor Photo", "Collocated", "Sensor Type", "Contact email"))
   
   openxlsx::addWorksheet(wb, sheetName = "Sensor Info")
   openxlsx::writeData(wb, sheet = "Sensor Info", x = meta_df)
   
   data_prepped <- aggstats_list %>%
     purrr::map(.f = function(x) x %>%
-                                dplyr::mutate(temperature = (temperature_mean - 32) * 5/9) %>% # Fahrenheit to Celsius
-                                dplyr::select("datetime", "temperature",
-                                              "humidity" = "humidity_mean", "pm25"))
+                                dplyr::mutate(temperature = (temperature_mean - 32) * 5/9,
+                                              day_of_week = weekdays(datetime)) %>% # Fahrenheit to Celsius
+                                dplyr::select("datetime", "day_of_week", 
+                                              "temperature",
+                                              "humidity" = "humidity_mean",
+                                              "pm25"))
   # Extracting datasets timezone.    
   timezone <- attr(data_prepped[[1]][["datetime"]], "tzone")
   # Loading data dictionary 
   data_dict_df <- .load_data_dictionary(path = data_dict_path, timezone = timezone)
   
-  if (use_aqi) {
+  if ( !is.null(aqi_data) ) {
     # Add aqi column to data_prepped dfs.
     data_prepped <- purrr::map2(.x = data_prepped, .y = aqi_data, 
                                 .f = function(x, y) left_join(x = x, y = rename(y, aqi = 2), by = "datetime") %>% 
@@ -99,7 +101,8 @@ make_PA_wkbk <- function(
       ) %>% 
       # Removing total datetime for date and time variables. 
       dplyr::select(-datetime) %>%
-      dplyr::select(date, time, "humidity %" =  humidity, "temperature (C)" = temperature,
+      dplyr::select(date, time, "Day of Week" = day_of_week,
+                    "humidity %" =  humidity, "temperature (C)" = temperature,
                     "PM2.5 μg/m3" =  pm25, everything()) %>% 
       # Rounding numeric variables.
       dplyr::mutate_if(is.numeric, round, digits = 2)
