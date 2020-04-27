@@ -22,26 +22,40 @@
 #' @return A length seven named list of ggplot objects.
 
 day_of_week_pmPlotlist <- function(
-  aggstats_list,
+  sensor_list,
   aqi_country,
   sensor_colors = NULL,
+  sd_ribbon = NULL,
   ribbon_alpha = 0.3,
   aqi_bar_alpha = 0.2
 ) {
   
-  # TODO: Add error control system.
+
+  if ( !is.null(sd_ribbon) ) {
+    
+    if ( !is.numeric(sd_ribbon) | length(sd_ribbon) != 1 ) {
+      stop("sd_ribbon must be NULL or numeric value.")
+    }
+    
+  } else {
+    
+    sd_ribbon <- 0
+  }
   
   if (is.null(sensor_colors)) {
     # Making palette of colors for sensors.
-    sensor_colors <- RColorBrewer::brewer.pal(n = length(aggstats_list), name = "Dark2")
+    sensor_colors <- RColorBrewer::brewer.pal(n = length(sensor_list), name = "Dark2")
     # Naming the vector with using sensor labels.
-    names(sensor_colors) <- names(aggstats_list)
+    names(sensor_colors) <- names(sensor_list)
   }
   
   # Readying plotting set.
-  data <- aggstats_list %>% 
+  data <- 
+    purrr::map(.x = sensor_list,
+               .f = function(x) sensor_extractData(x) %>%
+                 rename("pm25" = 2)) %>%
     # Convert to df.
-    dplyr::bind_rows(.id = "sensor") %>%
+    dplyr::bind_rows(.id = "label") %>% 
     dplyr::mutate(
       # Getting day of week for each hour.
       weekday = weekdays(datetime),
@@ -59,13 +73,14 @@ day_of_week_pmPlotlist <- function(
   aqi_info <- load_aqi_info(country = aqi_country)
   
   # AQI Average Hourly Line plots faceted by day of the week.
-  day_of_week_data <- 
+  week_data <- 
     data %>% 
-    dplyr::group_by(sensor, weekday, hour) %>% 
+    dplyr::group_by(label, weekday, hour) %>% 
     dplyr::summarize(
-      pm25_min = min(pm25, na.rm = TRUE),
-      pm25_max = max(pm25, na.rm = TRUE),
+      sd = sd(pm25, na.rm = TRUE) * sd_ribbon,
       pm25 = mean(pm25, na.rm = TRUE),
+      ribbon_low = pm25 - sd,
+      ribbon_high = pm25 + sd,
       N = n()
     )
   
@@ -80,26 +95,56 @@ day_of_week_pmPlotlist <- function(
   for (i in 1:length(full_week)) {
     day <- full_week[[i]]
     
-    day_data <- day_of_week_data %>% 
+    day_data <- week_data %>% 
       dplyr::filter(weekday == day)
     
-    day_plots[[day]] <- day_data %>% 
-      ggplot2::ggplot(aes(x = hour, y = pm25, group = sensor)) +
-      ggplot2::geom_line(aes(color = sensor), size = 1) +
-      ggplot2::geom_point(aes(color = sensor)) +
-      ggplot2::geom_ribbon(aes(ymin = pm25_min, ymax = pm25_max, fill = sensor), alpha = ribbon_alpha) +
+    plot <- day_data %>% 
+      ggplot2::ggplot(aes(x = hour, y = pm25, group = label)) +
+      ggplot2::geom_line(aes(color = label), size = 1) +
+      ggplot2::geom_point(aes(color = label)) +
       ggplot2::scale_color_manual(values = sensor_colors) +
-      ggplot2::annotate("rect", ymin = aqi_info$aqi_pm_mins, ymax = aqi_info$aqi_pm_maxs,
-               xmin = -Inf, xmax = Inf, alpha = aqi_bar_alpha, fill = aqi_info$colors) +
+      ggplot2::annotate(
+        geom = "rect",
+        ymin = aqi_info$aqi_pm_mins,
+        ymax = aqi_info$aqi_pm_maxs,
+        xmin = -Inf,
+        xmax = Inf,
+        alpha = aqi_bar_alpha,
+        fill = aqi_info$colors) +
       ggplot2::scale_fill_manual(values = plot_fill_colors, guide = FALSE) +
-      ggplot2::coord_cartesian(ylim = c(0, max(day_of_week_data$pm25_max, na.rm = TRUE))) +
       ggplot2::labs(
         title = "Average Hourly Particulate Matter 2.5 Concentration",
         subtitle = day,
-        caption = "with hourly max and min ribbons",
         color = "Sensor Label",
         x = x_label, 
         y = "PM 2.5 μg/m3")
+      
+      if ( !is.null(sd_ribbon) ){
+        
+        y_max <- max(day_data$ribbon_high, na.rm = TRUE)
+        
+        plot <- plot +
+          ggplot2::geom_ribbon(aes(ymax = ribbon_high, ymin = ribbon_low,
+                                   fill = label), alpha = ribbon_alpha) +
+          ggplot2::coord_cartesian(
+            ylim = c(0, y_max) 
+          ) +
+          ggplot2::labs(
+            caption = paste("Ribbons show", sd_ribbon, "standard deviation above and below mean.")
+          )
+      } else {
+      
+        y_max <- max(day_data$pm25, na.rm = TRUE) * 1.1
+        
+        plot <- plot + 
+          ggplot2::coord_cartesian(
+            ylim = c(0, y_max)
+          )
+    }
+    
+    day_plots[[day]] <- plot
+    
   }
+  
   invisible(day_plots)
 }

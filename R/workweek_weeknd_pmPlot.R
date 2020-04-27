@@ -1,16 +1,42 @@
+#' @title Plots Particulate Matter 2.5 Hour of Day Averages with lines showing Workweek and Weekend Averages 
+#' 
+#' \code{workweek_weeknd_pmPlot} returns a ggplot object.
+#' 
+#' @description 
+#' 
+#' @param aggstats_list
+#' @param aqi_country Character vector ISO 3166-1 alpha-2 country code of
+#'   country who's Air Quality Index (AQI) should be used for plotting
+#'   background. Current options are United States ("US") or India ("IN").
+#' @param sensor_colors Character Vector the length of unique sensors in
+#'   outliercount_list, of hexadigit colors to use for distinguishing sensor
+#'   lines. If NULL, the default, a random palette will be produce. See details
+#'   for more information.
+#' @param aqi_bar_alpha Numeric between 0 and 1 indicating the opacity of the
+#'   AQI background colors. Default is 0.2
+#' 
+#' @return 
+ 
+
 workweek_weeknd_pmPlot <- function(
-  outliercount_list,
-  sensor_colors,
+  aggstats_list,
   aqi_country,
-  line_thickness = 1,
+  sensor_colors = NULL,
   aqi_bar_alpha = 0.2
 ) {
   
   # TODO: Add docstring.
   # TODO: Add error control system.
   
+  if (is.null(sensor_colors)) {
+    # Making palette of colors for sensors.
+    sensor_colors <- RColorBrewer::brewer.pal(n = length(aggstats_list), name = "Dark2")
+    # Naming the vector using sensor labels.
+    names(sensor_colors) <- names(aggstats_list)
+  }
+  
   # Readying plotting set.
-  data <- outliercount_list %>% 
+  data <- aggstats_list %>% 
     # Convert to df.
     bind_rows(.id = "sensor") %>%
     mutate(
@@ -41,7 +67,7 @@ workweek_weeknd_pmPlot <- function(
   workweek_weeknd_plot <-
     workweek_weeknd_data %>%
     ggplot(aes(x = hour, y = pm25, group = interaction(sensor, workweek))) +
-    geom_line(aes(color = sensor, linetype = workweek), size = line_thickness) + 
+    geom_line(aes(color = sensor, linetype = workweek), size = 1) + 
     annotate("rect", ymin = aqi_info$aqi_pm_mins, ymax = aqi_info$aqi_pm_maxs,
              xmin = -Inf, xmax = Inf, alpha = aqi_bar_alpha, fill = aqi_info$colors) +
     scale_linetype_manual(values=c("solid", "twodash")) +
