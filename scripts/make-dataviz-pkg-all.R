@@ -7,7 +7,7 @@ devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
 
 output_path <- "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/Delivery/Citizen Science deployment/Data-Visualization-Packages/"
 
-programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US", "Boston" = "US")
+programs <- c("India" = "IN", "Sri Lanka" = "US", "Southern California" = "US", "Boston" = "US")
 
 # Getting all sensor data.
 pat_list <- load_pat_list()
@@ -26,10 +26,10 @@ sites <- sites[!is.na(sites)]
 
 for (i in 1:length(sites)) {
   
-  partner_site <- sites[i]
-  print(partner_site)
+  site <- sites[i]
+  print(site)
   site_sensors <- sensor_catalog %>% 
-    filter(site == partner_site)
+    filter(site == !!site)
   
   # Getting program of site_sensors.
   program <- site_sensors$Program[1]
@@ -59,17 +59,19 @@ for (i in 1:length(sites)) {
     })
   }
   # Makes data-vis-pkg dir, as well as identical compressed dir, and returns filepath to uncompressed dir.
-  try({uncompressed_dir <- 
-    make_site_dataviz_pkg(site = partner_site,
-                          aggstats_list = aggstats_list, 
-                          sensor_list = sensor_list,
-                          sensor_catalog = sensor_catalog,
-                          use_aqi = use_aqi,
-                          aqi_country = aqi_country,
-                          output_directory = output_path,
-                          timezone = timezone,
-                          facet_covid_workweek = TRUE)
+  try({
+    suppressWarnings({
+      uncompressed_dir <- 
+      make_site_dataviz_pkg(site = site,
+                            aggstats_list = aggstats_list, 
+                            sensor_list = sensor_list,
+                            aqi_country = aqi_country,
+                            output_directory = output_path,
+                            timezone = timezone,
+                            facet_covid_workweek = TRUE)
+    })
   # Deletes uncompressed dir.
   unlink(uncompressed_dir, recursive = TRUE)
+  print("Successful")
   })
 }
