@@ -4,6 +4,7 @@ devtools::load_all(path = "C://Users/iozeroff/Data-Science/R-Projects/AirSensor"
 devtools::load_all()
 
 
+
 # Making list of PA-II sensors.
 pa_ii_sensors <- 
   load_SensorCatalog() %>% 
@@ -32,8 +33,12 @@ aggstats_list <- purrr::map(pat_list_qcd, pat_qaqc_outliercounts)
 
 sensor_list <- pat_list_qcd %>% 
   # Creating AirSensor object. This allows us to generate AQI.
-  purrr::map(.f = function(x) (pat_outliers(x, replace = TRUE, showPlot = FALSE) %>%
+  purrr::map(.f = function(x) (pat_outliers(x,
+                                            replace = TRUE,
+                                            showPlot = FALSE) %>%
                                pat_createAirSensor(parameter = "pm25",
-                                                     channel = "ab")))
+                                                  channel = "ab"))
+             )
 
-rm(pa_ii_sensors, pat_test, empty_test)
+saveRDS(aggstats_list, file = "data/aggstats_list.rds")
+saveRDS(sensor_list, file = "data/sensor_list.rds")
