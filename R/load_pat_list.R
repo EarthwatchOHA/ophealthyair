@@ -10,8 +10,30 @@
 #'
 #' @param path Location of .rds file of pat_list to be loaded. Default is
 #'   "data/pat_list.rds"
+#' @param partner_site
+#' 
+#' @return 
 
-load_pat_list <- function(path = "data/pat_list.rds") {
+load_pat_list <- function(path = "data/pat_list.rds",
+                          site = NULL) {
   pat_list <- readRDS(path)
+  
+    
+  if ( !is.null(site) ) {
+    
+    sensor_catalog <- load_SensorCatalog()
+    
+    if (!(site %in% unique(sensor_catalog$site))) {
+      stop("site must be a valid deploy site in the Sensor Catalog.")
+    }
+    
+    site_sensors <- sensor_catalog %>% 
+      dplyr::filter(site == !!site)
+    
+    pat_list <- pat_list[site_sensors$label]
+    
+  }
+  
   return(pat_list)
+  
 }

@@ -16,10 +16,10 @@ fetch_SensorCatalog <- function(
   output_path = "data/sensor_catalog.rds"
 ) {
   # Updates Sensor Catalog .rds object from OneDrive file.
-  sensor_catalog <- readxl::read_excel(catalog_path, sheet = "Sensor Catalog" ) %>% 
+  sensor_catalog <- readxl::read_excel(catalog_path, sheet = "Sensor Catalog") %>% 
     dplyr::rename(id = "Sensor ID", label = "Sensor Label", site = "Deploy Site") %>% 
-    mutate(`Deploy Date` = format(`Deploy Date`, format = "%Y-%m-%d"),
-           `Deploy Time` = format(`Deploy Time`, format = "%H:%M"))
+    mutate(deploy_date = format(`Deploy Date`, format = "%Y-%m-%d"),
+           deploy_time = format(`Deploy Time`, format = "%H:%M"))
   
   saveRDS(sensor_catalog, output_path)
   return(sensor_catalog)
