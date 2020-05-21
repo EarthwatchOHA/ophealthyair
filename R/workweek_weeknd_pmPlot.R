@@ -17,9 +17,10 @@
 #' 
 #' @return 
  
+# TODO: Make sensor_list argument ... to be passed any number of sensors.
 
 workweek_weeknd_pmPlot <- function(
-  aggstats_list,
+  sensor_list,
   aqi_country,
   sensor_colors = NULL,
   aqi_bar_alpha = 0.2
@@ -28,15 +29,25 @@ workweek_weeknd_pmPlot <- function(
   # TODO: Add docstring.
   # TODO: Add error control system.
   
-  if (is.null(sensor_colors)) {
+  if ( any(!purrr::map_lgl(sensor_list, sensor_isSensor)) ) {
+    stop("All elements of sensor_list must be AirSensor objects.")
+  }
+  
+  if ( is.null(sensor_colors) ) {
     # Making palette of colors for sensors.
     sensor_colors <- RColorBrewer::brewer.pal(n = length(aggstats_list), name = "Dark2")
     # Naming the vector using sensor labels.
     names(sensor_colors) <- names(aggstats_list)
   }
   
+  # Loading AQI Categorical Index info for plotting.
+  aqi_info <- load_aqi_info(country = aqi_country)
+  
   # Readying plotting set.
-  data <- aggstats_list %>% 
+  data <- sensor_list %>%
+    purrr::map(.f = sensor_extractData) %>% 
+    # Rename second column to pm25.
+    purrr::map(.f = function(x) dplyr::rename(x, pm25 = 2)) %>% 
     # Convert to df.
     bind_rows(.id = "sensor") %>%
     mutate(
@@ -47,7 +58,7 @@ workweek_weeknd_pmPlot <- function(
       # Workweek 1 or 0.
       workweek = factor(if_else(weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"),
                                 "workweek", "weekend"))
-  ) 
+    ) 
   
   # Getting Timezone from data.
   timezone <- attr(data$datetime,"tzone")
@@ -55,29 +66,33 @@ workweek_weeknd_pmPlot <- function(
   # Creating x label with timezone.
   x_label <- paste("Hour of Day ", "(", timezone, ")", sep = "")
   
-  # Loading AQI Categorical Index info for plotting.
-  aqi_info <- load_aqi_info(country = aqi_country)
-  
   # Summarizing data over workweek or weekend.
-  workweek_weeknd_data <- 
+  summary_data <- 
     data %>% 
     group_by(hour, workweek, sensor) %>% 
     summarize(pm25 = mean(pm25, na.rm=TRUE))
   
-  workweek_weeknd_plot <-
-    workweek_weeknd_data %>%
+  ymax <- max(summary_data$pm25, na.rm = TRUE)
+  
+  plot <-
+    summary_data %>%
     ggplot(aes(x = hour, y = pm25, group = interaction(sensor, workweek))) +
     geom_line(aes(color = sensor, linetype = workweek), size = 1) + 
-    annotate("rect", ymin = aqi_info$aqi_pm_mins, ymax = aqi_info$aqi_pm_maxs,
-             xmin = -Inf, xmax = Inf, alpha = aqi_bar_alpha, fill = aqi_info$colors) +
-    scale_linetype_manual(values=c("solid", "twodash")) +
+    annotate("rect",
+             ymin = aqi_info$aqi_pm_mins,
+             ymax = aqi_info$aqi_pm_maxs,
+             xmin = -Inf,
+             xmax = Inf,
+             alpha = aqi_bar_alpha,
+             fill = aqi_info$colors) +
+    scale_linetype_manual(values=c("dotted", "solid")) +
     scale_color_manual(values = sensor_colors) +
-    coord_cartesian(ylim = c(0, max(workweek_weeknd_data$pm25, na.rm = TRUE))) +
+    coord_cartesian(ylim = c(0, ymax)) +
     labs(x = x_label,
          y = "PM 2.5 μg/m3", 
          title = "Average Particulate Matter 2.5 Concentration by Hour of Day Weekday vs. Weekend",
          color = "Sensor Label",
          linetype = "Day Type")
   
-  return(workweek_weeknd_plot)  
+  return(plot)  
 }

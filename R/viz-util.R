@@ -77,7 +77,7 @@ load_aqi_info <- function(country, path = "data/aqi_info.rds") {
 }
 
 load_covid_measures <- function(
-  path = "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/Delivery/OHA-COVID-policy-responses.csv"
+  path = "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/7.Data and Field Reports/2020/Post Covid-19 materials/OHA-COVID-policy-responses.csv"
 ) {
   # Reading COVID-19 Data
   covid_measures <- readr::read_csv(file = path) %>% 

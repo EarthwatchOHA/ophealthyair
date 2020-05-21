@@ -6,7 +6,7 @@
 #' @description Create a Workbook object filled with Particulate Matter data
 #'   from aggstats_list, a pre-generated Data Dictionary Sheet.
 #'
-#' @param aggstats_list
+#' @param sensor_list
 #' @param aqi_data
 #' @param sensor_catalog
 #' @param data_dict_path
@@ -37,16 +37,17 @@
 
 
 make_PA_wkbk <- function(
-  aggstats_list,
-  aqi_data = NULL,
+  sensor_list,
   sensor_catalog,
-  data_dict_path = "inputs/data-viz-package-wkbk-dictionary.xlsx") {
+  aqi_data = NULL,
+  data_dict_path = "inputs/data-viz-package-wkbk-dictionary.xlsx"
+) {
   # TODO: Add DocString
   
   # Creating excel workbook obect.
   wb <- openxlsx::createWorkbook(creator = "Earthwatch Institute US")
   
-  sensors <- names(aggstats_list)
+  sensors <- names(sensor_list)
   
   # Vulnerable to changes in Sensor_catalog.
   meta_df <- sensor_catalog %>%
@@ -57,22 +58,41 @@ make_PA_wkbk <- function(
   openxlsx::addWorksheet(wb, sheetName = "Sensor Info")
   openxlsx::writeData(wb, sheet = "Sensor Info", x = meta_df)
   
-  data_prepped <- aggstats_list %>%
+  
+  # Subset AirSensors with PM data.
+  pm_data <- sensor_list %>% 
+    purrr::map("pm25") %>% 
+    purrr::map(.f = function(x) dplyr::rename(x$data, pm25 = 2))
+  # Subset AirSensors with Temp data.  
+  temp_data <- sensor_list %>% 
+    purrr::map("temperature") %>% 
+    purrr::map(.f = function(x) rename(x$data, temperature = 2))
+  # Subset AirSensors with Humidity data.
+  humidity_data <- sensor_list %>% 
+    purrr::map("humidity") %>% 
+    purrr::map(.f = function(x) rename(x$data, humidity = 2))
+  
+  # Combining all sensor variables into single dataframes for modelling.
+  data <- 
+    purrr::map2(.x = pm_data, .y = temp_data,
+                .f = left_join, by = "datetime") %>%
+    purrr::map2(.y = humidity_data, 
+                .f = left_join, by ="datetime") %>% 
     purrr::map(.f = function(x) x %>%
-                                dplyr::mutate(temperature = (temperature_mean - 32) * 5/9,
-                                              day_of_week = weekdays(datetime)) %>% # Fahrenheit to Celsius
-                                dplyr::select("datetime", "day_of_week", 
-                                              "temperature",
-                                              "humidity" = "humidity_mean",
-                                              "pm25"))
+                                dplyr::mutate(
+                                  # Fahrenheit to Celsius
+                                  temperature = (temperature - 32) * 5/9,
+                                  day_of_week = weekdays(datetime)
+                                  )
+    )
   # Extracting datasets timezone.    
-  timezone <- attr(data_prepped[[1]][["datetime"]], "tzone")
+  timezone <- attr(data[[1]][["datetime"]], "tzone")
   # Loading data dictionary 
   data_dict_df <- .load_data_dictionary(path = data_dict_path, timezone = timezone)
   
   if ( !is.null(aqi_data) ) {
     # Add aqi column to data_prepped dfs.
-    data_prepped <- purrr::map2(.x = data_prepped, .y = aqi_data, 
+    data <- purrr::map2(.x = data, .y = aqi_data, 
                                 .f = function(x, y) left_join(x = x, y = rename(y, aqi = 2), by = "datetime") %>% 
                                   rename("US AQI" = aqi))
   } else {
@@ -82,10 +102,9 @@ make_PA_wkbk <- function(
   }  
   
   # Creates a joined time series of PM data for each sensor at site (column names are sensor labels).
-  pm_joined <- data_prepped %>% 
+  pm_joined <- pm_data %>% 
     purrr::reduce(full_join, by = "datetime") %>% 
-    dplyr::select(datetime, contains("pm")) %>% 
-    `colnames<-`(c("datetime", names(aggstats_list))) %>% 
+    `colnames<-`(c("datetime", names(sensor_list))) %>% 
     dplyr::mutate_if(is.numeric, round, digits = 2)
   # Writing to workbook
   openxlsx::addWorksheet(wb, sheetName = "PM Side-by-Side")
@@ -94,7 +113,7 @@ make_PA_wkbk <- function(
   for (i in 1:length(sensors)) {
     sensor <- sensors[[i]]
     
-    df <- data_prepped[[sensor]] %>% 
+    df <- data[[sensor]] %>% 
       dplyr::mutate(
         date = format(as.POSIXct(datetime, format="%Y-%m-%d %H:%M:%S"), "%Y-%m-%d"),
         time = format(as.POSIXct(datetime, format="%Y-%m-%d %H:%M:%S"), "%H:%M:%S")

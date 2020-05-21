@@ -9,36 +9,36 @@ day_of_week_pmPlot <- function(
   x_axis_label = "Hour of Day (UTC)",
   y_axis_label = "PM 2.5 μg/m3"
 ) {
-  
+
   # TODO: Add docstring.
   # TODO: Add error control system.
-  
+
   # Loading AQI Categorical Index info for plotting.
   aqi_info <- load_aqi_info(country = aqi_country)
-  
+
   # AQI Average Hourly Line plots faceted by day of the week.
-  day_of_week_data <- 
-    data %>% 
-    group_by(hour, weekday, sensor) %>% 
+  day_of_week_data <-
+    data %>%
+    group_by(hour, weekday, sensor) %>%
     summarize(pm25 = mean(pm25, na.rm = TRUE),
               pm25_min = mean(pm_channels_min, na.rm = TRUE),
               pm25_max = mean(pm_channels_max, na.rm = TRUE))
-  
-  
+
+
   # Pasting the vectors together.
   plot_fill_colors <- append(sensor_colors, aqi_info$colors)
-  
+
   full_week <- c("Monday", "Tuesday", "Wednesday",
                  "Thursday", "Friday", "Saturday", "Sunday")
-  
+
   day_plots <- list()
-  
+
   for (i in 1:length(full_week)) {
     day <- full_week[[i]]
-    
-    day_plots[[day]] <- 
-      day_of_week_data %>% 
-      filter(weekday == day) %>% 
+
+    day_plots[[day]] <-
+      day_of_week_data %>%
+      filter(weekday == day) %>%
       ggplot(aes(x = hour, y = pm25, group = sensor)) +
       geom_line(aes(color = sensor), size = line_thickness) +
       geom_point(aes(color = sensor)) +
