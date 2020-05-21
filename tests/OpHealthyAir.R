@@ -1,2 +1,2 @@
 library(testthat)
-test_check("oha-ups")
+test_check("ophealthyair")

@@ -1,57 +1,49 @@
 # Testing Ingestion System
 library(testthat)
+library(MazamaCoreUtils)
+library(MazamaSpatialUtils)
+devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+library(ophealthyair)
 
-skip_on_cran()
-# Dates to use for testing.
-start <- "01-10-2019"
-end <- "02-10-2019" 
+setArchiveBaseUrl(archiveBaseUrl = "http://smoke.mazamascience.com/data/PurpleAir")
+setSpatialDataDir("data/spatial")
+loadSpatialData("NaturalEarthAdm1")
 
-# Details for a sensor that should work.
-label_good <- "Red Acre Stowe"
-id_good <- 29709
-# Details for a sensor that should fail.
-label_bad <- "Reed Ackra Stove"
-id_bad <- 29708
+# Our ingestion system is composed of wrapper functions around the Mazama 
+# Science AirSensor.
+# 
+# These warppers provide trycatch and data persistence systems.
+# The system is based around 3 functions.
+# 1. fetch_pas
+# 2. fetch_pat
+# 3. fetch_pat_list
+#
+# fetch_pat_list is vectorized version of fetch_pat that iterates return
+# values into a list.
+# So we're testing fetch_pas and fetch_pat, to confirm the wrapper functions,
+# and that data persistence is working correctly.
 
-labels <- c(label_good, label_bad)
-ids <- c(id_good, id_bad)
+label <- "EW_IOApt_FF47"
+id <- 40347
 
-pas <- AirSensor::pas_load()
+test_pas <- fetch_pas(countryCodes = "US", 
+                      lookbackDays = 7,
+                      output_path = "tests/cache/pas.rds")
 
-test_that("Testing fetch_pas Purple Air Series loading.", {
-  expect_equal(pas, fetch_pas(countryCodes = "US"))
-  expect_error(fetch_pas())
+pas <- pas_createNew(countryCodes = "US", lookbackDays = 7)
+
+test_that("fetch_pas successfuly fetches and saves as .rds a pas object.", {
+  expect_equal(test_pas, pas)
+  expect_true(AirSensor::pas_isPas(test_pas))
+  expect_equal(load_pas(path = "tests/cache/pas.rds"), test_pas)
 })
 
 
-test_that("Testing get_pat.", {
-  # Testing against AirSensor package.
-  expect_equal(pat_createNew(pas = pas,
-                             label = label_good, id = id_good,
-                             startdate = start, enddate = end),
-               get_pat(pas = pas,
-                       label = label_good, id = id_good,
-                       startdate = start, enddate = end))
-  # Testing with bad label, bad id.
-  expect_error(get_pat(pas = pas, label = label_bad, id = id_bad, startdate = start, enddate = end))
-  # Testing with bad label, good id.
-  expect_error(get_pat(pas = pas, label = label_bad, id = id_good, startdate = start, enddate = end))
-  # Testing with good label, bad id.
-  expect_error(get_pat(pas = pas, label = label_good, id = id_bad, startdate = start, enddate = end))
-  # Testing without label.
-  expect_error(get_pat(pas = pas, id = id_good, startdate = start, enddate = end))
-  # Testing without id.
-  expect_error(get_pat(pas = pas, label = label_good, startdate = start, enddate = end))
-  # Testing with timezone.
-  expect_equal(pat_createNew(pas = pas, label = label_good, id = id_good,
-                             startdate = start, enddate = end, timezone = "GMT"),
-               get_pat(pas = pas, label = label_good, id = id_good, 
-                       startdate = start, enddate = end, timezone = "GMT"))
-  })
+test_pat <- fetch_pat(label = label, id = id, pas = test_pas)
 
+pat <- pat_createNew(label = label, id = id, pas = pas)
 
-test_that("Testing fetch_pats.", {
-  expect_known_value(fetch_pat_list(pas = pas, sensor_labels = labels, sensor_ids = ids,
-                                    startdate = start, enddate = end,
-                                    output_path = NULL), file = "tests/cache")
+test_that("fetch_pat returns a pat when expected, and an error message when expected.", {
+  expect_equal(test_pat, pat)
+  expect_true(AirSensor::pat_isPat(test_pat))
 })
