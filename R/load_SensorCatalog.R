@@ -8,8 +8,17 @@
 #'
 #' @param path The path to the sensor_catalog .RDS file to read.
 
-load_SensorCatalog <- function(path = "data/sensor_catalog.rds") {
+load_SensorCatalog <- function(
+  path = "data/sensor_catalog.rds",
+  site = NULL
+) {
   # Loads Sensor Catalog Object as DataFrame.
   sensor_catalog <- readRDS(path)
+
+  if ( !is.null(site) ) {
+    sensor_catalog <- sensor_catalog %>%
+      dplyr::filter(site == !!site)
+  }
+
   return(sensor_catalog)
 }

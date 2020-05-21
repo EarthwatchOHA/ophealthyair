@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+#'
 #' @title
 #'
 #' \code{fetch_SensorCatalog} returns a formatted dataframe from the Earthwatch
@@ -12,15 +14,19 @@
 #'   dataframe.
 
 fetch_SensorCatalog <- function(
-  catalog_path = "C:/Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/Delivery/Citizen Science deployment/SensorCatalog.xlsx",
+  catalog_path = "C:/Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/7.Data and Field Reports/2020/SensorCatalog.xlsx",
   output_path = "data/sensor_catalog.rds"
 ) {
   # Updates Sensor Catalog .rds object from OneDrive file.
-  sensor_catalog <- readxl::read_excel(catalog_path, sheet = "Sensor Catalog") %>% 
-    dplyr::rename(id = "Sensor ID", label = "Sensor Label", site = "Deploy Site") %>% 
-    mutate(deploy_date = format(`Deploy Date`, format = "%Y-%m-%d"),
-           deploy_time = format(`Deploy Time`, format = "%H:%M"))
-  
+  sensor_catalog <- readxl::read_excel(catalog_path, sheet = "Sensor Catalog") %>%
+    dplyr::rename(id = "Sensor ID", label = "Sensor Label", site = "Deploy Site") %>%
+    mutate(
+      Collocated  = if_else(Collocated == 1, TRUE, FALSE,
+                            missing = FALSE),
+      deploy_date = format(`Deploy Date`, format = "%Y-%m-%d"),
+      deploy_time = format(`Deploy Time`, format = "%H:%M")
+      )
+
   saveRDS(sensor_catalog, output_path)
   return(sensor_catalog)
 }
