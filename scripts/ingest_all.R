@@ -18,7 +18,10 @@ pas <- fetch_pas(countryCodes = countries_coded, lookbackDays = 30)
 
 # Setting up startdate and enddate variables.
 default_startdate <- 20180101
-startdates <- sensor_catalog$`Deploy Date` %>% stringr::str_replace_all(pattern = "-", replacement = "") %>% as.integer()
+startdates <- sensor_catalog$`Deploy Date` %>%
+  stringr::str_replace_all(pattern = "-", replacement = "") %>%
+  as.integer()
+
 startdates[is.na(startdates)] <- default_startdate
 # TODO: Could maybe do the enddates inside of fetch_pat_list.
 enddate <- as.numeric(stringr::str_replace_all(lubridate::today(), "-", ""))

@@ -1,6 +1,27 @@
 # Outputs data delivery package for given site using  sensor_catalog, and previously generated pat_list.
 # TODO: Suppress much of the output.
+#------------------------------------------------------------------------------
+# Env setup
+suppressMessages({
+  library(dplyr)
+  library(ggplot2)
+  library(lubridate)
+  devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+  devtools::load_all()
+})
+#------------------------------------------------------------------------------
+# Instantiate Argument Parser
 
+# Define Options for Choice Arguments 
+calibration_opts <- list.files(path = "data/calibration-models") %>%
+  stringr::str_remove(
+    pattern = stringr::fixed("-mod.rds", ignore_case = TRUE)
+  ) %>%
+  # Replace all dashes w spaces.
+  stringr::str_replace_all("-", " ") %>% 
+  stringr::str_to_title()
+
+# Create Argument Parser
 if ( !exists("args", mode = "list") ) {
   
   suppressPackageStartupMessages(library("argparse"))
@@ -14,8 +35,7 @@ if ( !exists("args", mode = "list") ) {
                       dest="verbose", help="Print little output")
   
   parser$add_argument("-s", "--site", type = "character",
-                      default = "Mark Chandler Homestead",
-                      help = "Site of sensor deployment [default %(default)s]")
+                      help = "Site of sensor deployment.")
   
   parser$add_argument("-o", "--output_dir", type = "character",
                       default = "outputs/data-viz-pkgs",
@@ -36,6 +56,10 @@ if ( !exists("args", mode = "list") ) {
   parser$add_argument("-f", "--facet_covid_workweek", type = "logical",
                       default = TRUE,
                       help = "TRUE facets the COVID plots by workweek and weekend [default %(default)s].")
+  parser$add_argument("-c", "--calibrate", action = "store", type = "character",
+                      required = FALSE, choices = calibration_opts, 
+                      help = "If valid option given, apply calibration to sensor data.")
+  
   
   args <- parser$parse_args()
 }
@@ -43,32 +67,8 @@ if ( !exists("args", mode = "list") ) {
 programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US",
               "Boston" = "US")
 
-library(dplyr)
-library(ggplot2)
-library(lubridate)
-devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
-devtools::load_all()
-
 #------------------------------------------------------------------------------
-# Make folder for site_deliverable:
-# Adjust site name to be in dir name.
-site4file <- args$site %>%
-  tolower() %>%
-  # Remove all commas or apostophres.
-  stringr::str_remove_all("[',]*") %>%
-  # Replace all spaces with dashes.
-  stringr::str_replace_all(" ", "-")
-
-# Date directory name.
-dirname <- paste(lubridate::today(), site4file, sep = "-")
-dir_path <- paste(args$output_dir, dirname, sep = "/")
-
-# Create directory.
-dir.create(dir_path)
-
-#------------------------------------------------------------------------------
-# Load Data:
-
+# Load Data
 sensor_catalog <- load_SensorCatalog(site = args$site)
 
 pat_list <- load_pat_list(site = args$site)
@@ -79,9 +79,22 @@ pat_list <- load_pat_list(site = args$site)
 # QAQC data. See vignettes/qaqc_pt1.rmd for details.
 source("scripts/qaqc.R")
 
-# Loading cleaned data.
-aggstats_list <- readRDS("data/aggstats_list.rds")
+# Load cleaned data.
+pat_list <- readRDS("data/pat_list_qcd.rds")
 sensor_list <- readRDS("data/sensor_list.rds")
+
+if ( !is.null(args$calibrate) ) {
+  proxy_site <- args$calibrate
+  source("scripts/calibrate.R")
+  # Load calibrated data.
+  pat_list <- readRDS("data/pat_list_calibrated.rds")
+  sensor_list <- readRDS("data/sensor_list_calibrated.rds")
+}
+
+# Separate sensor_list into component measurements.
+pm_list <- purrr::map(.x = sensor_list, "pm25")
+temp_list <- purrr::map(.x = sensor_list, "temperature")
+humidity_list <- purrr::map(.x = sensor_list, "humidity")
 
 # Get program from site.
 program <- sensor_catalog$Program[1]
@@ -101,13 +114,26 @@ for (i in 1:length(pat_list)) {
 }
 
 # Convert Timezone if timezone given and valid.
-if( !is.null(timezone) && timezone %in% OlsonNames()) {
-  aggstats_list <- aggstats_list %>% 
-    purrr::map(.f = function(x) mutate(x, 
-                                       datetime = lubridate::with_tz(time = datetime,
-                                                                     tzone = timezone)))
-  sensor_list <- purrr::map(.x = sensor_list,
-                            .f = function(x) sensor_convertTZ(x, to = timezone))
+if( !is.null(timezone) && timezone %in% OlsonNames() ) {
+  pat_list <- purrr::map(.x = pat_list,
+                         .f = function(x) pat_convertTZ(x,
+                                                        to = timezone)
+                         )
+  
+  pm_list <- purrr::map(.x = pm_list,
+                        .f = function(x) sensor_convertTZ(x,
+                                                          to = timezone)
+                        )
+  temp_list <- purrr::map(.x = temp_list,
+                          .f = function(x) sensor_convertTZ(x,
+                                                            to = timezone)
+  )
+  
+  humidity_list <-purrr::map(.x = humidity_list,
+                             .f = function(x) sensor_convertTZ(x,
+                                                               to = timezone)
+  )
+  
 }
 
 #------------------------------------------------------------------------------
@@ -122,25 +148,25 @@ if (aqi_country == "IN") {
 
 # Converts sensor_list to aqi_list.
 if( include_aqi_data ) {
-  aqi_data <- purrr::map(.x = sensor_list,
+  aqi_list <- purrr::map(.x = pm_list,
                          .f = function(x) PWFSLSmoke::monitor_aqi(x) %>%
                            sensor_extractData())
 } else {
-  aqi_data <- NULL
+  aqi_list <- NULL
 }
 
 # Instantiate and fill workbook object. 
 # TODO: Have PA_wkbk accept either just
 # sensor object, or sensor object and pat objects.
-wb <- make_PA_wkbk(aggstats_list = aggstats_list,
+wb <- make_PA_wkbk(sensor_list = sensor_list,
                    sensor_catalog = sensor_catalog, 
-                   aqi_data = aqi_data)
+                   aqi_data = aqi_list)
 
 #------------------------------------------------------------------------------
 # Vizualization Preparation:
 
 # Make palette of colors to use across visualizations for sensors
-sensor_colors <- RColorBrewer::brewer.pal(n = length(names(aggstats_list)),
+sensor_colors <- RColorBrewer::brewer.pal(n = length(names(sensor_list)),
                                           name = "Dark2")
 
 # Name the palette vector with sensor labels.
@@ -166,13 +192,22 @@ meta_colnames <- c(
   "Sensor Orientation (degrees and Cardinal Orientation)"
 )
 
-obs_range <- aggstats_list %>% 
+obs_range <- pat_list %>% 
   purrr::map(
-    .f = function(x) dplyr::summarize(x, 
-                                      `First Measurement` = min(datetime),
-                                      `Most Recent Measurement` = max(datetime))
+    .f = function(x) x$data %>% 
+      dplyr::summarize(first = min(datetime),
+                       last = max(datetime))
     ) %>% 
-  dplyr::bind_rows(.id = "label")
+  dplyr::bind_rows(.id = "label") %>% 
+  mutate(
+    first = format(x = first, format = "%d-%b-%Y"),
+    last = format(x = last, format = "%d-%b-%Y")
+    ) %>% 
+  select(
+    label,
+    "First Measurement" = first,
+    "Most Recent Measurement" = last
+  )
 
 
 sensor_meta_flex <- sensor_catalog %>% 
@@ -206,14 +241,16 @@ visualizations <- append(visualizations, "sensor_meta_flex")
                                 main = "Daily Average Particulate Matter 2.5",
                                 xlab = sensor_name,
                                 ylab = "Particulate Matter 2.5",
-                                cols = aqi_info$colors, labels = aqi_info$names,
-                                breaks = aqi_info$breaks_24, data.thresh = data_thresh)
+                                cols = aqi_info$colors,
+                                labels = aqi_info$names,
+                                breaks = aqi_info$breaks_24,
+                                data.thresh = data_thresh)
   invisible(plot)
 }
 
 calendarPlots_list <- purrr::map2(
-  .x = sensor_list,
-  .y = names(sensor_list),
+  .x = pm_list,
+  .y = names(pm_list),
   .f = function(x,y, aqi_country) sensor_extractData(x) %>% 
     select(date = datetime, pm25 = 2) %>%
     .calendar_pmPlot(sensor_name = y,
@@ -224,10 +261,10 @@ if( length(calendarPlots_list) > 0 ) {
   # Adding to viz
   visualizations <- append(x = visualizations, "calendarPlots_list")
 }
-#--------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Workweek/Weekend Plot:
 
-workweek_plot <- workweek_weeknd_pmPlot(sensor_list = sensor_list,
+workweek_plot <- workweek_weeknd_pmPlot(sensor_list = pm_list,
                                         sensor_colors = sensor_colors,
                                         aqi_country = aqi_country)
 
@@ -237,10 +274,9 @@ if( is.ggplot(workweek_plot) ) {
   
 }
 
-#--------------------------------------------------------------------------------------------------------  
+#------------------------------------------------------------------------------  
 # Stacked Day of Week AQI Bar Charts
-
-day_bar_plots <- purrr::map(.x = sensor_list, .f = day_of_week_aqiBar,
+day_bar_plots <- purrr::map(.x = pm_list, .f = day_of_week_aqiBar,
                             aqi_country = aqi_country, position = "fill")
 
 if( length(day_bar_plots ) > 0 ) {
@@ -250,39 +286,57 @@ if( length(day_bar_plots ) > 0 ) {
 }
 
 #------------------------------------------------------------------------------
-# Make safe function.
-safe_pollutionRose_dash <- 
-  purrr::safely(.f = function(x) sensor_pollutionRose_dash(x,
-                                                           aqi_country = "US", 
-                                                           include_map = args$include_wind_map, 
-                                                           max_noaa_dist = args$max_wind_distance),
-                quiet = FALSE)  
-# Make plots.
-rose_list <- purrr::map(.x = sensor_list,
-                        .f = safe_pollutionRose_dash)
+# Monthly Faceted AQI Colored Points
+aqicolor_points_plots <- purrr::map(
+  .x = pm_list,
+  .f = function(x) sensor_hourlyavg_aqicolorsPlot(sensor = x,
+                                                  aqi_country = aqi_country,
+                                                  time_facet = "month",
+                                                  point_size = 1.5,
+                                                  point_alpha = 0.9)
+)
 
-# Filter results for successes.
-rose_list <- rose_list %>% 
-  purrr::map("result") %>%
-  purrr::compact()
+if( length(aqicolor_points_plots ) > 0 ) {
+  # Adding to viz
+  visualizations <- append(x = visualizations, "aqicolor_points_plots")
   
-
-if( length(rose_list) > 0 ) {
-  # Add to ppt.
-  visualizations <- append(x = visualizations, "rose_list")
 }
-
-# Print what didn't work to console.
-if ( length(rose_list) < length(sensor_list) ) {
+#------------------------------------------------------------------------------
+# # Make safe function.
+# safe_pollutionRose_dash <- 
+#   purrr::safely(
+#     .f = function(x) sensor_pollutionRose_dash(x,
+#                                                aqi_country = "US", 
+#                                                include_map = args$include_wind_map, 
+#                                                max_noaa_dist = args$max_wind_distance),
+#     quiet = FALSE)  
+# 
+# # Make plots.
+# rose_list <- purrr::map(.x = pm_list,
+#                         .f = safe_pollutionRose_dash)
+# 
+# # Filter results for successes.
+# rose_list <- rose_list %>% 
+#   purrr::map("result") %>%
+#   purrr::compact()
+#   
+# # Not Adding Currently
+# if( length(rose_list) > 0 ) {
+#   # Add to ppt.
+#   visualizations <- append(x = visualizations, "rose_list")
+# }
+# 
+# # Print what didn't work to console.
+# if ( length(rose_list) < length(pm_list) ) {
+#   
+#   names(pm_list)[!names(pm_list) %in% names(rose_list)]
+#   
+#   print(paste("No rose plots generated for:",
+#               names(pm_list)[!names(pm_list) %in% names(rose_list)])
+#   )
+# }
   
-  names(sensor_list)[!names(sensor_list) %in% names(rose_list)]
-  
-  print(paste("No rose plots generated for:",
-              names(sensor_list)[!names(sensor_list) %in% names(rose_list)])
-  )
-}
-  
-#--------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # COVID Measures Pre and During Plot:
 
 # Prepare COVID Measures Dataframe.
@@ -305,9 +359,11 @@ covid_measures_flex <- covid_measures %>%
 visualizations <- append(visualizations, "covid_measures_flex")
 
 # Make COVID Plots
-covid_plots <- covid_measures_hourlyavg_Plotlist(aggstats_list = aggstats_list, 
-                                                 covid_measures = covid_measures,
-                                                 facet_workweek = args$facet_covid_workweek)
+covid_plots <- 
+  purrr::map(.x = pm_list,
+             .f = covid_measures_Plot,
+             covid_measures = covid_measures,
+             facet_workweek = args$facet_covid_workweek)
 
 if( length(covid_plots) > 0 ) {
   # Add to ppt.
@@ -315,14 +371,30 @@ if( length(covid_plots) > 0 ) {
   
 }
 
-#--------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Create ppt object.
 ppt <- officer::read_pptx()
 
 viz_ppt <- make_viz_ppt(mget(visualizations), ppt = ppt)
 
-#--------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Save objects to dir. 
+# Make folder for site_deliverable:
+# Adjust site name to be in dir name.
+site4file <- args$site %>%
+  tolower() %>%
+  # Remove all commas or apostophres.
+  stringr::str_remove_all("[',]*") %>%
+  # Replace all spaces with dashes.
+  stringr::str_replace_all(" ", "-")
+
+# Date directory name.
+dirname <- paste(lubridate::today(), site4file, sep = "-")
+dir_path <- paste(args$output_dir, dirname, sep = "/")
+
+# Create directory.
+dir.create(dir_path)
+
 
 # Workbook
 filename_wkbk <- paste(dir_path, "aqworkbook.xlsx", sep = "/")
