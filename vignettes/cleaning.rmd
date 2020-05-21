@@ -1,0 +1,103 @@
+---
+title: "Quality Assurance and Quality Control: Pt. 1 Cleaning"
+author: "Ian Ozeroff"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+```{r env setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+library(dplyr)
+library(ggplot2)
+devtools::load_all()
+devtools::load_all(path = "C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+
+knitr::opts_knit$set(root.dir = here::here())
+
+# Establish Plotting Theme
+ggthemr::ggthemr("pale", layout = "clean", type = "outer")
+```
+
+
+```{r ingestion, include=FALSE}
+# Figure out memory saving way to ingest. 
+pat_list <- load_pat_list(site = "Ian Ozeroff Apartment")
+sensor_label <- "EW_IOApt_FF47"
+pat <- pat_list[[sensor_label]]
+```
+
+# Cleaning
+
+Purple Air Sensors are wonderful tools, in that they provide low-cost air quality monitoring, that's easy to deploy, with open and accessible data. However, these boons do come with trade-offs, such as increased sensor malfunctioning  and lower user confidence in data accuracy. The purpose of Operation Healthy Air's cleaning and calibration process is to mitigate these two tradeoffs. Our first step cleaning, discussed here, addresses the former issue. Operation Healthy Air's QAQC process is built using Mazama Science's [AirSensor](https://github.com/MazamaScience/AirSensor) package (see citations).
+
+A Purple Air Sensor makes two readings (one for each channel) every, approximately, 120 seconds. The value of data at this resolution, is the ability to see short-duration air quality fluctuations and pollution events. However, federal reference monitors (FRM's) aggregate their measurements to hourly values, and thus, in order to calibrate our sensors to FRM to a cleaned time series of this resolution, federal reference monitors we also want an aggregated time series of hourly PM2.5 data.
+
+Currently, Our aggregation process is only applicable to Purple Air PA-II Sensors, that collect two PM channels (i.e. have two plantower sensors). Operation Healthy Air utilizes both PA-I and PA-II sensors, so we describe sensor type in our sensor catalog, and filter our time series by device (described in our Sensor Catalogue). As an example, we'll be using our sensor labelled `r print(pat$meta$label)`.
+
+## Data Validation
+
+The easiest data to clean, is data that you know is impossible, and so can be invalidated. The best example for our purposes is a Relative Humidity measurement of 500%. Though our sensor might report this measurement, we know it's impossible. Purple Air supplies the specifications of their sensor's components, and so we know that the equipment cannot detect certain values, though we'll sometimes see them in our data. Purple Air Sensor Valid Measurement Ranges are as follows:
+
+* Particulate Matter 2.5 (PM25): $0-1000μg/m^3$
+* Temperature: $40-185$ &deg;F
+* Relative Humidity (RH): $0-100$%
+
+```{r pat_qc, results='hide'}
+pat_qcd <- pat %>% pat_qc(max_humidity = NULL)
+
+pat %>% 
+  pat_ValidationPlot(param = "pm25_A")
+```
+
+
+## Outlier Detection
+
+Operation Healthy Air detects and removes outliers using the Hampel filter. The Hampel filter takes a time series, such as Purple Air Sensor data and runs a rolling window over the timeseries. Operation Healthy Air uses a 23 observation window. Within the 23 observation window, the median is found, and the standard deviation is calculated. All window observations further than a specified number of standard deviations, known here as the Threshold Minimum are marked as outliers. Operation Healthy Air then replaces outliers with the window median. The process is repeated as the window 'rolls' through the dataset.
+
+```{r outlierPlot, echo=FALSE}
+# TODO: Animate rolling window for demonstration.
+pat_qcd_outliers <- pat_qcd %>% 
+  pat_outliers(showPlot = FALSE)
+
+pat_qcd %>% pat_outlierPlot(thresholdMin = 10)
+```
+
+## Aggregation & QC Algorithm
+
+Next, as mentioned above, we aggregate our cleaned high resolution time-series to hourly values, by averaging  measurements to hourly values, and then taking the average between channels, giving us a single PM25 measurement.
+
+To ensure the aggregation process does not produce extreme values, we use Mazama Science's QC_hourly_AB_01 algorithm. This function runs a two-sample t-test on our A and B channel means, essentially conducting a hypothesis test on the probability of randomly observing the difference in the two means (see [resources/Mazama-Air-Sensor-Vignettes/](purpleair_qc.html) for more detail). Thus, a lower p-value indicates a malfunction of some sort in one or both sensors.
+
+This function then marks as NA data that fails to satisfy any one of the following three conditions:
+
+1. A or B channel has fewer than 20 measurements.
+2. The  difference in means between channel A and B for the hour in question is above 10, AND the p-value of our two-sample t-test is < 1e-4.
+3. The channel average PM25 value is below 100 AND the difference in means between channel A and B for the hour in question is above 20.
+
+Please note, this is a relatively strict QC algorithm, as the difference between channels A and B for high measurements can be larger than the algorithm allows while still being meaningful.
+
+```{r quality control filter}
+
+sensor <- pat_qcd_outliers %>% 
+  pat_createAirSensor()
+
+sensor %>% sensor_extractData() %>% head()
+
+```
+
+The data can then have a calibration eqution applied to it in order to achieve a higher leel of conidence. For greater detail on how Operation Healthy Air generates and applies calibrations to our sensor's see our Quality Assurance and Quality Control: Pt. 1 Cleaning vignette.
+
+# Citations
+```{r, citations}
+
+citation("AirSensor")
+citation("ggplot2")
+
+```

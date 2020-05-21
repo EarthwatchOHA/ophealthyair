@@ -1,334 +1,361 @@
 ---
-title: "Proxy Calibration Notebook"
+title: "Quality Assurance and Control: Pt. 2 Calibration"
 output:
   html_document:
     df_print: paged
 ---
 
-This notebook is a primary attempt to establish a strong system for proxy calibrating Operation Healthy Air's deployed Purple Air sensor networks in Boston, India, Sri Lanka, and Southern California.
-
-Proxy sensor calibration is the use of one or more sensors collocated with a reference monitor to generate a correction model that can be deployed to sensors nearby, under the assumption that sensors are precisely inaccurate, that is they given the same inputs, they generate the same measurements, and that nearby air quality conditions are similar enough to the conditions at the reference monitor that the model is still applicable.
-
-The goal of proxy calibration is to minimize the need for sensor collocation while maximizing the accuracy of sensor readings.
+# TODO: Chunk models into time-periods.
+- Pre/Post Covid 19. 
+- Season.
 
 ```{r environment setup, include=FALSE}
 library(dplyr)
 devtools::load_all()
-devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+library("AirSensor")
 library(ropenaq)
 library(ggplot2)
 source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-equation.R")
 source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-mutate-functions.R")
+library(modelr)
+library(ggthemr)
+library(stringr)
+library(leaflet)
+library(leaflet.extras)
+library(htmltools)
+library(purrr)
 
 knitr::opts_knit$set(root.dir = here::here())
+
+# Establish Plotting Theme
+ggthemr::ggthemr("pale", layout = "clean", type = "outer")
 ```
 
 ```{r, include=FALSE}
-sensor_catalog <- load_SensorCatalog()
+site <- "IMD Lodhi Road"
 
-bos_sensors <-  filter(sensor_catalog, site == "Von Hillern St (MassDEP)") 
-bos_pats <- load_pat_list()[bos_sensors$label] 
-
-
-ind_sensors <- filter(sensor_catalog, site == "IMD Lodhi Road")
-ind_pats <- load_pat_list()[ind_sensors$label]
-```
-
-```{r loading openaq api data, eval=FALSE, include=FALSE}
-# Trying to get data via openaq package and API.
-# Openaq package is failing to read API.
-# Trying for Lodhi Road data. Not currently working.
-cities_tableIndia <- aq_locations(country="IN", city = "Delhi", parameter = "pm25")
-
-lodhi_data <- aq_measurements(country = "IN", city = "Delhi", location = "Lodhi+Road%2C+Delhi+-+IMD")
-
-# Trying Boston
-cities_tableUS <- aq_locations(country="US", city = "Boston-Cambridge-Quincy", parameter = "pm25")
-
-roxbury_data <- aq_measurements(location = "Boston+-+Roxbury", parameter = "pm25")
-
-test <- aq_latest(city = "Boston-Cambridge-Quincy", parameter = "pm25")
-```
-
-```{r reading openaq downloaded datasets, include=FALSE}
-bos_ref_data <- readr::read_csv(file = "inputs/roxbury-openaq-20200318.csv", col_names = TRUE)
-
-ind_ref_data <- readr::read_csv(file = "inputs/lodhi-road-openaq-20200318.csv")
-```
-
-Alright, so now we'll run through proxy-calibration on two different collocated sensor networks, Lodhi Road in India and Roxbury Mass.
-
-Calibrations to test:
-
-1. Generating a simple linear model for each sensor using just PM.
-
-2. Generating a multivariate linear model for each sensor using RH and Temperature.
-
-```{r not qc data modeling, include=FALSE}
-bos_data <- purrr::map(bos_pats,
-                          .f = function(x) pat_aggregateOutlierCounts(x) %>% # Aggregating PA data to hourly data.
-                            mutate(pm25 = (pm25_A_mean + pm25_B_mean) / 2) %>% # Averaging A + B
-                            select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% # Subsetting columns 
-  bind_rows(.id = "sensor_label") %>% # Combining list into df.
-  group_by(sensor_label) %>% 
-  tidyr::nest() %>% 
-  mutate(
-    # Joining time series to reference monitor data.
-    data = purrr::map(.x = data,
-                           .f  = function(x) inner_join(x, select(bos_ref_data, utc, "ref_value" = value),
-                                                        by = c("datetime" = "utc"))),
-    # Creating models.
-    basic_linear = purrr::map(.x = data,
-                              .f = function(x) lm(ref_value ~ pm25, data = x)),
-    ref_and_temp = purrr::map(.x = data, 
-                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
-    ref_and_humidity = purrr::map(.x = data, 
-                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
-    all_vars = purrr::map(.x = data,
-                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
-    )
-
-ind_data <- purrr::map(ind_pats,
-                          .f = function(x) pat_aggregateOutlierCounts(x) %>% # Aggregating PA data to hourly data.
-                            mutate(pm25 = (pm25_A_mean + pm25_B_mean) / 2) %>% # Averaging A + B
-                            select(datetime, pm25, temperature = temperature_mean, humidity = humidity_mean)) %>% # Subsetting columns 
-  bind_rows(.id = "sensor_label") %>% # Combining list into df.
-  group_by(sensor_label) %>% 
-  tidyr::nest() %>% 
-  mutate(
-    # Joining time series to reference monitor data.
-    data = purrr::map(.x = data,
-                           .f  = function(x) inner_join(x, select(ind_ref_data, utc, "ref_value" = value),
-                                                        by = c("datetime" = "utc"))),
-    # Creating models.
-    basic_linear = purrr::map(.x = data,
-                              .f = function(x) lm(ref_value ~ pm25, data = x)),
-    ref_and_temp = purrr::map(.x = data, 
-                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
-    ref_and_humidity = purrr::map(.x = data, 
-                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
-    all_vars = purrr::map(.x = data,
-                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
-    )
-
-```
-
-
-```{r not qc model summaries, message=FALSE, echo=FALSE}
-
-bos_mod_summs <- bos_data %>% 
-  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"), values_to = "models") %>% 
-  mutate(
-    slope = purrr::map(.x = models, .f = extract_slope),
-    intercept = purrr::map(.x = models, .f = extract_int),
-    p_value = purrr::map(.x = models, .f = extract_p),
-    R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
-    adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
-    ) %>%
-  select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
-  tidyr::unnest()
-
-bos_mod_summs %>%
-  arrange(sensor_label, desc(R2)) %>%
-  mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
-  knitr::kable()
-
-ind_mod_summs <- ind_data %>% 
-  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"), values_to = "models") %>% 
-  mutate(
-    slope = purrr::map(.x = models, .f = extract_slope),
-    intercept = purrr::map(.x = models, .f = extract_int),
-    p_value = purrr::map(.x = models, .f = extract_p),
-    R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
-    adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
-    ) %>%
-  select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
-  tidyr::unnest()
-
-ind_mod_summs %>%
-  arrange(sensor_label, desc(R2)) %>%
-  mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
-  knitr::kable()
-```
-
-What we see is that consistently, our multivariate models accounting for both temperature and humidity have higher R2 than using just the simple linear model, or using only temperature or humidity. 
-
-
-Now I want to make the same models again using our QAQC'd data to test the efficacy of our QAQC process.
-
-```{r qc modeling, include=FALSE}
-
-pat_list <- load_pat_list()[append(bos_sensors$label, ind_sensors$label)]
+sensor_catalog <- load_SensorCatalog(site = site)
+pat_list <- load_pat_list(site = site)
 source("scripts/qaqc.R")
 
-bos_qc_data <- outliercount_list[bos_sensors$label] %>%
-  bind_rows(.id = "sensor_label") %>% 
-  select(sensor_label, datetime, pm25, temperature = temperature_mean, humidity = humidity_mean) %>% 
-  group_by(sensor_label) %>% 
-  tidyr::nest() %>% 
-  mutate(
-    # Joining time series to reference monitor data.
-    data = purrr::map(.x = data,
-                           .f  = function(x) inner_join(x, select(bos_ref_data, utc, "ref_value" = value),
-                                                        by = c("datetime" = "utc"))),
-    # Creating models.
-    basic_linear = purrr::map(.x = data,
-                              .f = function(x) lm(ref_value ~ pm25, data = x)),
-    ref_and_temp = purrr::map(.x = data, 
-                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
-    ref_and_humidity = purrr::map(.x = data, 
-                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
-    all_vars = purrr::map(.x = data,
-                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
+# Get Collocation Site Name from Sensor Catalog
+ref_site <- sensor_catalog %>% 
+  distinct(`Collocation Site`) %>%
+  pull()
+```
+
+
+As described in Part 1 of this vignette, Operation Healthy Air utilizes a rigid cleaning process to remove data points that are invalid or unlikely. This allows greater confidence in the trends being displayed by one or more our sensors. Purple Air sensors are low-cost, and have vulnerabilities more expensive sensors, such as Federal Reference Monitors deal with, most imporantly different sensitivities to different particle shapes.
+
+Briefly, Plantower Sensors (the PM detectors used in Purple Air Sensors) shine lasers through air samples and 'count' the Particulate Matter 2.5 within a sample. A key aspect of how this 'count' is taken, is assuming all particulates are spheres. Not all particulates are spheres. 
+
+As a result, taken by Purple Air sensors vary dependent on the pollution source and type. Wood burning smoke and vehicle exhaust emissions in the same density can register different values by a PM sensor.
+
+Our solution is to calibrate sensors to local conditions using Federal Reference Monitors (cite). Operation Healthy Air programs in Boston and India do not yet have the resources to calibrate each sensor before deployment. To compensate, we calibrate by proxy.Sensors at Federal Reference Monitor Sites in Boston and Delhi create calibrations using these sensors. We apply our program calibration curves to program sensors, assuming conditions are relatively similar within a programs geography. 
+
+## Reference Monitor Data
+
+Here we'll calibrate our senses at tje `r print(ref_site)` site.
+
+We import Reference Monitor Data from the OpenAQ API (https://docs.openaq.org/). Currently, the API only provides the previous 90 days of data. We are working to access more reference monitor data to create more robust calibration curves.
+
+```{r, include = FALSE}
+# Site metadata.
+ref_meta <- aq_locations() %>% filter(location == ref_site)
+
+# Get Collocation Site Reference Monitor Data  
+ref_data <- aq_measurements(location = ref_meta$locationURL, parameter = "pm25") %>% 
+  select(datetime = "dateUTC", pm25 = value) %>% 
+  filter(pm25 >= 0)
+```
+
+
+Our calibration curves are multivariate linear models--we create an equation that accounts for sensor temperature and humidity to transform our raw PM measurement towards the same scale as a Federal Reference Monitor.
+
+```{r}
+# Loading AirSensor objects.
+sensor_list <- readRDS("data/sensor_list.rds")
+
+# Subset AirSensors with PM data.
+pm_data <- sensor_list %>% 
+  map("pm25") %>% 
+  map(.f = function(x) dplyr::rename(x$data, pm25 = 2))
+# Subset AirSensors with Temp data.  
+temp_data <- sensor_list %>% 
+  map("temperature") %>% 
+  map(.f = function(x) rename(x$data, temperature = 2))
+# Subset AirSensors with Humidity data.
+humidity_data <- sensor_list %>% 
+  map("humidity") %>% 
+  map(.f = function(x) rename(x$data, humidity = 2))
+
+# Join PM Data to Reference Data
+pm_data <- pm_data %>% 
+  map(.f = function(x) inner_join(x = x,
+                                  y = ref_data,
+                                  by = "datetime",
+                                  suffix = c("_pa", "_ref"))
+  )
+
+# Combining all sensor variables into single dataframes for modelling.
+data <- 
+  map2(.x = pm_data, .y = temp_data,
+       .f = left_join, by = "datetime") %>%
+  map2(.y = humidity_data, 
+       .f = left_join, by ="datetime") %>%
+  # Filter complete cases.
+  map(.f = function(x) x[complete.cases(x), ])
+
+```
+
+
+We have `r length(sensor_list)` at the site, so we generate curves for each. 
+
+```{r}
+# Make Models
+test2 <- data %>% 
+  map(
+      .f = function(x) lm(pm25_ref ~ pm25_pa + temperature + humidity, data = x)
     )
 
-ind_qc_data <- outliercount_list[ind_sensors$label] %>%
-  bind_rows(.id = "sensor_label") %>% 
-  select(sensor_label, datetime, pm25, temperature = temperature_mean, humidity = humidity_mean) %>% 
-  group_by(sensor_label) %>% 
-  tidyr::nest() %>% 
-  mutate(
-    # Joining time series to reference monitor data.
-    data = purrr::map(.x = data,
-                           .f  = function(x) inner_join(x, select(ind_ref_data, utc, "ref_value" = value),
-                                                        by = c("datetime" = "utc"))),
-    # Creating models.
-    basic_linear = purrr::map(.x = data,
-                              .f = function(x) lm(ref_value ~ pm25, data = x)),
-    ref_and_temp = purrr::map(.x = data, 
-                              .f = function(x) lm(ref_value ~ pm25 + temperature, data = x)),
-    ref_and_humidity = purrr::map(.x = data, 
-                                  .f = function(x) lm(ref_value ~ pm25 + humidity, data = x)),
-    all_vars = purrr::map(.x = data,
-                          .f = function(x) lm(ref_value ~ pm25 + temperature + humidity, data =x))
-    )
-
-
-```
-
-```{r qc model summaries, message=FALSE, echo=FALSE}
-
-bos_qc_mod_summs <- bos_qc_data %>% 
-  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"),
-                      values_to = "models") %>% 
-    mutate(
-      slope = purrr::map(.x = models, .f = extract_slope),
-      intercept = purrr::map(.x = models, .f = extract_int),
-      p_value = purrr::map(.x = models, .f = extract_p),
-      R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
-      adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
-      ) %>%
-    select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
-    tidyr::unnest()
-
-bos_qc_mod_summs %>%
-    arrange(sensor_label, desc(R2)) %>%
-    mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
-    knitr::kable()
-
-ind_qc_mod_summs <- ind_qc_data %>% 
-  tidyr::pivot_longer(cols = c("basic_linear", "ref_and_temp", "ref_and_humidity", "all_vars"),
-                      values_to = "models") %>% 
-    mutate(
-      slope = purrr::map(.x = models, .f = extract_slope),
-      intercept = purrr::map(.x = models, .f = extract_int),
-      p_value = purrr::map(.x = models, .f = extract_p),
-      R2 = purrr::map(.x = models, .f = extract_R2, adjusted = FALSE),
-      adj_R2 = purrr::map(.x = models, .f = extract_R2, adjusted = TRUE)
-      ) %>%
-    select(sensor_label, model_type = name, slope, intercept, p_value, R2, adj_R2) %>% 
-    tidyr::unnest()
-  
-ind_qc_mod_summs %>% 
-  arrange(sensor_label, desc(R2)) %>%
-  mutate_if(is.numeric, .funs = signif, digits = 3) %>% 
-  knitr::kable()
-
-```
-
-Once again, we see that our models controlling for all measured variables have consistently the highest R2's.
-
-I'd like to now look at the comparison between the not qc'ed and qc'ed data to see if our QAQC process is producing more accurate results.
-
-```{r Raw QC Comparison, message=FALSE, echo=FALSE}
-full_join(bos_mod_summs, bos_qc_mod_summs,
-          by = c("sensor_label", "model_type"), suffix = c("_raw", "_qc")) %>%
-  select(sensor_label, model_type, R2_raw, R2_qc) %>% 
-  arrange(sensor_label, desc(R2_qc)) %>% 
-  knitr::kable()
-
-full_join(ind_mod_summs, ind_qc_mod_summs,
-          by = c("sensor_label", "model_type"), suffix = c("_raw", "_qc")) %>%
-  select(sensor_label, model_type, R2_raw, R2_qc) %>% 
-  arrange(sensor_label, desc(R2_qc)) %>% 
+map_df(.x = models, .f = function(x) model_equation(x)) %>% 
   knitr::kable()
 ```
 
-Interestingly, our quality controlled models typically underperform compared to our raw models. I would hypothesize this is the result of either:
+Collocating multiple sensors, allows us to select the robust model from among multiple options. But, model selection is no simple task. 
 
-* using smaller datasets in our qc controlled models. 
+Below are several model selection criteria that may be used to select a calibration curve. Operation Healthy Air uses the adjusted R-squared statistic to select the best calibration curve. 
 
-* the imputation of outliers in our qc process generating synthetic data.
+```{r model summary stats, message=FALSE, echo=FALSE}
+# TODO: Add Root Mean Square Error
+mod_summaries <- 
+  data.frame(
+    label = names(models),
+    p_value = map_dbl(.x = models, .f = extract_p),
+    AIC = map_dbl(.x = models, .f = AIC),
+    R2 = map_dbl(.x = models, .f = extract_R2, adjusted = FALSE),
+    R2_adjusted = map_dbl(.x = models, .f = extract_R2, adjusted = TRUE),
+    RMSE = map_dbl(.x = models,
+                    ~ sqrt(mean((.x$residuals) ^ 2))
+                   ),
+    missing = map_dbl(.x = pm_data, .f = function(x) sum(is.na(x$pm25_pa))),
+    row.names = NULL
+    ) 
 
-Many of our models appear to functioning relatively well, though there does appear to be a fairly wide range of R2 values for our models. The question we now face is, given multiple collocated sensors for a given reference monitor, which sensor (and associated model), do we select as our proxy.
+mod_summaries %>%
+  knitr::kable()
+```
 
-## Model Selection
-
-The simplest answer to this question is to select the model with the highest R2. 
 
 ```{r Model Correction Visualization, message=FALSE, echo=FALSE}
-bos_proxy_sensor <- bos_qc_mod_summs %>% 
-  ungroup() %>% 
+# Get label of best model.
+proxy_sensor <- mod_summaries %>% 
   filter(R2 == (max(R2))) %>%
-  pull(sensor_label)
-
-bos_mods <- as.list(bos_data$all_vars)
-
-names(bos_mods) <- bos_data$sensor_label
-
-bos_correction <- bos_mods[[bos_proxy_sensor]]
-
-ind_proxy_sensor <- ind_qc_mod_summs %>% 
-  ungroup() %>% 
-  filter(R2 == (max(R2))) %>%
-  pull(sensor_label)
-
-ind_mods <- as.list(ind_data$all_vars)
-
-names(ind_mods) <- ind_data$sensor_label
-
-ind_correction <- ind_mods[[ind_proxy_sensor]]
-
-broom::augment(bos_correction) %>%
-  ggplot(aes(x = 1:nrow(.))) +
-  geom_point(aes(y = pm25), color = "red", position = "jitter", alpha = 0.7) +
-  geom_point(aes(y = .fitted), color = "blue", position = "jitter", alpha = 0.7) +
-  geom_point(aes(y = ref_value), color = "green", position = "jitter", alpha = 0.7) +
+  pull(label)
+# Select best model.
+proxy_model <- models[[proxy_sensor]]
+# Visualize Transformation
+broom::augment(proxy_model) %>%
+   select(position = .rownames, pm25_pa, pm25_ref, .fitted) %>%  
+  mutate(
+    position = as.integer(position),
+  ) %>%
+  tidyr::pivot_longer(-position) %>%
+  mutate(
+    name = factor(
+      name,
+      levels = c(".fitted",
+                 "pm25_pa",
+                 "pm25_ref"),
+      labels = c("Calibrated",
+                 "Collocated",
+                 "Reference"),
+    )
+  ) %>% 
+  ggplot(aes(x = position, y = value)) +
+  geom_point(aes(color = name), position = "jitter", alpha = 0.5) +
+  geom_line(aes(color = name), position = "jitter", alpha = 0.8, size = 1.2) +
   labs(
-    x = "Observation Number",
+    fill = "Data",
+    color = "Data",
     y = "µg/m3",
-    title = "Correction Factor",
-    caption = "Red: Raw \n Green: Reference Monitor \n Blue: Calibrated Values",
-    subtitle = bos_proxy_sensor
-  )
+    title = "Calibration",
+    caption = paste("FRM:", ref_site),
+    subtitle = proxy_sensor
+  ) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = "top",
+        legend.title = element_blank()
+        )
+```
 
-broom::augment(ind_correction) %>%
-  ggplot(aes(x = 1:nrow(.))) +
-  geom_point(aes(y = pm25), color = "red", position = "jitter", alpha = 0.7) +
-  geom_point(aes(y = .fitted), color = "blue", position = "jitter", alpha = 0.7) +
-  geom_point(aes(y = ref_value), color = "green", position = "jitter", alpha = 0.7) +
-  labs(
-    x = "Observation Number",
-    y = "µg/m3",
-    title = "Correction Factor",
-    caption = "Red: Raw \n Green: Reference Monitor \n Blue: Calibrated Values",
-    subtitle = ind_proxy_sensor
-  )
+## Application
+
+Once we've selected a model we feel confident in, we apply it to our cleaned and calibrated sensor data.
+
+```{r}
+# Load another sites raw data.
+pat_list <- load_pat_list(site = "Modern Public School")
+
+# QAQC
+suppressMessages({
+  source("scripts/qaqc.R")
+})
 
 ```
 
-### Calibration Equations
+Cleaned and calibrated data comes as 2-minute increment time series of channel A and Channel B measurements. We calibrate each of these channels, and the aggregate data into an hourly dataset. Our high resolution dataset can also be used to observe hyperlocalized events. 
 
-Boston: `r model_equation(bos_correction)`
+```{r}
 
-India: `r model_equation(ind_correction)`
+pat_list <- readRDS("data/pat_list_qcd.rds")
+
+pa_meta <- pat_list %>% 
+  map(.f = pat_extractMeta) %>% 
+  bind_rows(.id = "label")
+
+ref_map <- leaflet() %>%
+  addTiles() %>%
+  addMarkers(
+    data = ref_meta, 
+    icon = list(
+      iconUrl = 'http://icons.iconarchive.com/icons/artua/star-wars/128/Master-Joda-icon.png',
+      iconSize = c(75, 75)
+    ),
+    lat  = ~latitude, lng = ~longitude,
+    label = paste("Reference Monitor",
+                  ~htmlEscape(location), sep = "\n")
+    ) %>% 
+  addCircleMarkers(data = pa_meta, color = "purple",
+                   lat = ~latitude, lng = ~longitude, 
+                   label = ~htmlEscape(label))
+
+print(ref_map)
+
+pat_list_calibrated <- list()
+
+for (i in 1:length(pat_list) ) {
+  
+  # To calibrate a PAT, must calibrate each channel individually.
+  pat <- pat_list[[i]]
+  
+  meta <- pat %>%
+    pat_extractMeta()
+  
+  data <- pat %>%
+    pat_extractData() 
+  
+  data[["pred_A"]] <- data %>% 
+    select(pm25_pa = pm25_A, temperature, humidity) %>% 
+    modelr::add_predictions(model = proxy_model) %>% 
+    pull(pred)
+    
+  data[["pred_B"]] <- data %>% 
+    select(pm25_pa = pm25_B, temperature, humidity) %>% 
+    modelr::add_predictions(model = proxy_model) %>% 
+    pull(pred)
+  
+  
+  plot <- data %>% 
+    select(datetime, pm25_A, pm25_B, pred_A, pred_B) %>%  
+    tidyr::pivot_longer(-datetime) %>% 
+    mutate(
+      channel = if_else(str_detect(name, "_A$"), "A", "B"),
+      calibrated = str_remove(name, "_[AB]$"),
+      calibrated = factor(
+        calibrated,
+        levels = c("pred",
+                   "pm25"),
+        labels = c("Calibrated",
+                   "Uncalibrated")
+      )
+    ) %>% 
+    ggplot(aes(x = datetime,
+               y = value,
+               color = calibrated)) +
+    geom_line(position = "jitter",
+              alpha = 0.5, size = 1.2) + 
+    labs(
+      color = "Calibrated",
+      y = "µg/m3",
+      title = "Calibration",
+      caption = paste("FRM:", ref_site),
+      subtitle = meta$label
+    ) +
+    facet_grid(channel~.) +
+    theme(
+      axis.title.x=element_blank(),
+      axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(),
+      legend.position = "top",
+      legend.title = element_blank(),
+      legend.background = element_blank()
+      ) +
+    guides(
+      color = guide_legend(override.aes = list(size = 5))
+      )
+  
+  print(plot)
+  
+  
+  pat[["data"]] <- data %>% 
+    select(-pm25_A, -pm25_B) %>% 
+    rename(pm25_A = pred_A,
+           pm25_B = pred_B)    
+  
+  pat_list_calibrated[[meta$label]] <- pat
+    
+}
+
+```
+
+And we can see perhaps more clearly how our hourly data is affected by calibration as well.
+
+```{r echo=FALSE, message=FALSE}
+
+uncalibrated <- readRDS("data/sensor_list.RDS") %>%
+  map(.f = function(x) x$pm25$data) %>% 
+  reduce(.f = full_join, by = "datetime") %>% 
+  tidyr::pivot_longer(-datetime, names_to = "sensor")
+
+calibrated <- map(pat_list_calibrated,
+                 .f = function(x) pat_createAirSensor(x)$data) %>% 
+  reduce(.f = full_join, by = "datetime") %>% 
+  tidyr::pivot_longer(-datetime, names_to = "sensor")
+
+bind_rows(uncalibrated, calibrated, .id = "calibrated") %>%
+  mutate(
+    calibrated = factor(
+      calibrated, 
+      levels = c(1, 2),
+      labels = c("Uncalibrated", "Calibrated"))
+  ) %>%
+  ggplot(aes(x = datetime,
+             y = value,
+             color = calibrated)) +
+  geom_line(position = "jitter",
+              alpha = 0.5, size = 1.2) + 
+  labs(
+    color = "Calibrated",
+    y = "µg/m3",
+    title = "Calibration",
+    caption = paste("FRM:", ref_site),
+    subtitle = meta$label
+  ) +
+  facet_grid(sensor~.) +
+  theme(
+    axis.title.x=element_blank(),
+    axis.text.x=element_blank(),
+    axis.ticks.x=element_blank(),
+    legend.position = "top",
+    legend.title = element_blank(),
+    legend.background = element_blank()
+    ) +
+  guides(
+    color = guide_legend(override.aes = list(size = 5))
+    )
+
+```
+
