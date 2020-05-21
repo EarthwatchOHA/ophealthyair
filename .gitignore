@@ -40,6 +40,11 @@ Thumbs.db
 *.csv
 *.xlsx
 
+# Data Files #
+data/pas*
+data/pat*
+data/sensor*
+
 # GeoSpatial Files #
 *.tif
 
