@@ -15,11 +15,16 @@ suppressMessages({
 # Define Options for Choice Arguments 
 calibration_opts <- list.files(path = "data/calibration-models") %>%
   stringr::str_remove(
-    pattern = stringr::fixed("-mod.rds", ignore_case = TRUE)
+    pattern = stringr::fixed(".rds", ignore_case = TRUE)
   ) %>%
   # Replace all dashes w spaces.
   stringr::str_replace_all("-", " ") %>% 
   stringr::str_to_title()
+
+aqi_country_opts <- load_aqi_info() %>% 
+  names() %>% 
+  countrycode::countrycode(origin = "iso2c",
+                           destination = "country.name")
 
 # Create Argument Parser
 if ( !exists("args", mode = "list") ) {
@@ -59,6 +64,10 @@ if ( !exists("args", mode = "list") ) {
   parser$add_argument("-c", "--calibrate", action = "store", type = "character",
                       required = FALSE, choices = calibration_opts, 
                       help = "If valid option given, apply calibration to sensor data.")
+  
+  parser$add_argument("-q", "--aqi_country", action = "store", type = "character",
+                      required = TRUE, choices = aqi_country_opts, default = "United States",
+                      help = "What countries AQI should be used in visualizations [default %(default)s].")
   
   
   args <- parser$parse_args()
@@ -100,7 +109,9 @@ humidity_list <- purrr::map(.x = sensor_list, "humidity")
 program <- sensor_catalog$Program[1]
 
 # Get country code for visualization AQI parameters.
-aqi_country <- programs[program]
+aqi_country <- args$aqi_country %>% 
+  countrycode::countrycode(origin = "country.name",
+                           destination = "iso2c")
 
 # Attempt to convert data timezone to local time.
 
