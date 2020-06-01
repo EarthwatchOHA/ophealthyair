@@ -32,16 +32,16 @@ save_aqi_info <- function() {
   # US
   # Loading EPA AQI categorical index info from PWFSL Smoke.
   # The breaks in this are by PM.
-  us_aqi_info <- PWFSLSmoke::AQI
+  US <- PWFSLSmoke::AQI
   # Adding minimums and maximums of AQI breaks.
   # TODO: Can I condense this into one series of breaks.
-  us_aqi_info[["aqi_breaks"]] <- data.frame(minimums = c(0, 51, 101, 151, 201, 301),
+  US[["aqi_breaks"]] <- data.frame(minimums = c(0, 51, 101, 151, 201, 301),
                                             maximums = c(50, 100, 150, 200, 300, 500))
   
-  us_aqi_info[["aqi_pm_mins"]] <- c(-Inf, 12.1, 35.5, 55.5, 150.5, 250.5)
-  us_aqi_info[["aqi_pm_maxs"]] <- c(12, 35.4, 55.4, 150.4, 250.4, Inf)
+  US[["aqi_pm_mins"]] <- c(-Inf, 12.1, 35.5, 55.5, 150.5, 250.5)
+  US[["aqi_pm_maxs"]] <- c(12, 35.4, 55.4, 150.4, 250.4, Inf)
   # India
-  ind_aqi_info <- list(
+  IN <- list(
     index_category = c("Good", "Satisfactory", "Moderate",
                        "Poor", "Very Poor", "Severe"),
     aqi_pm_mins = c(-Inf, 31, 61, 91, 121, 251),
@@ -58,22 +58,28 @@ save_aqi_info <- function() {
   )
   
   aqi_info <- list(
-    US = us_aqi_info,
-    IN = ind_aqi_info
+    US = US,
+    IN = IN
   )
   
-  
   saveRDS(aqi_info, file = "data/aqi_info.rds")
+  
+  return(aqi_info)
 }
 
-load_aqi_info <- function(country, path = "data/aqi_info.rds") {
-  possible_countries <- c("US", "IN")
-  if (!(country %in% possible_countries)) {
-    stop(paste("country must be one of",
-               paste(possible_countries, collapse = ", ")))
+load_aqi_info <- function(country = NULL, path = "data/aqi_info.rds") {
+  
+  if( !is.null(country) ){
+    possible_countries <- c("US", "IN")
+    if (!(country %in% possible_countries)) {
+      stop(paste("country must be one of",
+                 paste(possible_countries, collapse = ", ")))
+    }
+    aqi_info <- readRDS(file = path)[[country]]
+  } else {
+    aqi_info <- readRDS(file = path)
   }
-  aqi_info <- readRDS(file = path)
-  return(aqi_info[[country]])
+  return(aqi_info)
 }
 
 load_covid_measures <- function(
