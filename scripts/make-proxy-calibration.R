@@ -148,9 +148,12 @@ if ( mod_select_stat == "R2") {
     pull(label)
 }
 
-calibration_mod <- models[[best_mod]]
 
-print(summary(calibration_mod))
+calibration <- list()
+calibration[["meta"]] <- ref_meta
+calibration[["model"]] <- models[[best_mod]]
+
+print(summary(calibration$model))
 #-------------------------------------------------------------------------------
 # Save to file:
 deploy_site4file <- args$site %>%
@@ -160,7 +163,7 @@ deploy_site4file <- args$site %>%
   # Replace all spaces with dashes.
   stringr::str_replace_all(" ", "-")
 
-out_file <- paste(deploy_site4file, "mod.RDS", sep = "-")
+out_file <- paste(deploy_site4file, ".rds", sep = "")
 out_path <- paste("data", "calibration-models", out_file, sep = "/")
 
-saveRDS(calibration_mod, out_path)
+saveRDS(calibration, out_path)

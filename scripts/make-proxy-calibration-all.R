@@ -1,5 +1,8 @@
 # Make new proxy calibrations for all of our deploy sites.
-devtools::load_all()
+suppressMessages({
+  library(dplyr)
+  devtools::load_all()
+})
 
 sensorCatalog <- fetch_SensorCatalog()
 
