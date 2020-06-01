@@ -8,7 +8,7 @@ Authors@R:
            email = "first.last@example.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: What the package does (one paragraph).
-License: What license it uses
+License: GNU General Public License v3.0
 Encoding: UTF-8
 LazyData: true
 Suggests: 
@@ -19,11 +19,12 @@ VignetteBuilder: knitr
 Imports: 
     AirSensor,
     dplyr,
-    RDCOMClient,
+    magrittr,
     zip,
     roxygen2,
     MazamaCoreUtils,
     MazamaSpatialUtils,
     here,
-    lubridate
-RoxygenNote: 7.0.2
+    lubridate,
+    magrittr
+RoxygenNote: 7.1.0
