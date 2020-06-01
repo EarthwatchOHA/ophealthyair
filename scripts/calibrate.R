@@ -5,11 +5,11 @@ proxy_site4file <- proxy_site %>%
   tolower() %>%
   stringr::str_replace_all(pattern = " ",
                            replacement = "-") %>%  
-  stringr::str_c("mod.rds", sep = "-")
+  stringr::str_c(".rds", sep = "")
 
 mod_path <- paste("data", "calibration-models", proxy_site4file, sep = "/")
 
-mod <- readRDS(mod_path)
+mod <- readRDS(mod_path)$model
 
 #------------------------------------------------------------------------------
 # Calibrate pat_list_qcd:
