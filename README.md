@@ -1,10 +1,8 @@
 # Operation Healthy Air
-=======
 
 Operation Healthy Air deploys Particulate Matter Air Quality Sensors in communities across the globe to build community data literacy and environmental resiliency by engaging and empowering citizen scientists. This repository is the underlying codebase of the programs data pipeline and visualizations.
 
 ## Getting Started
-=======
 
 
 ### Prerequisites
@@ -19,14 +17,12 @@ Operation Healthy Air deploys Particulate Matter Air Quality Sensors in communit
 6. Work on TODO's (mostly error control systems).
 
 ## License
-=======
 
 ## Authors
-=======
+
 * Ian Ozeroff
 
 ## Acknowledgements
-=======
 * Mazama Science
 * OpenAir
 * OpenAQ
