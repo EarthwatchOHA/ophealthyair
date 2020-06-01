@@ -4,7 +4,7 @@
 #' 
 #' @description 
 #' 
-#' @param aggstats_list
+#' @param sensor_list
 #' @param aqi_country Character vector ISO 3166-1 alpha-2 country code of
 #'   country who's Air Quality Index (AQI) should be used for plotting
 #'   background. Current options are United States ("US") or India ("IN").
@@ -35,9 +35,9 @@ workweek_weeknd_pmPlot <- function(
   
   if ( is.null(sensor_colors) ) {
     # Making palette of colors for sensors.
-    sensor_colors <- RColorBrewer::brewer.pal(n = length(aggstats_list), name = "Dark2")
+    sensor_colors <- RColorBrewer::brewer.pal(n = length(sensor_list), name = "Dark2")
     # Naming the vector using sensor labels.
-    names(sensor_colors) <- names(aggstats_list)
+    names(sensor_colors) <- names(sensor_list)
   }
   
   # Loading AQI Categorical Index info for plotting.
