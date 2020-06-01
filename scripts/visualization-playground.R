@@ -151,3 +151,18 @@ covid_table <- gridExtra::tableGrob(dplyr::select(covid_measures,
 
 gridExtra::grid.arrange(plt, covid_table, layout_matrix = rbind(c(1, 1, 2),
                                                                c(1, 1, NA)))
+
+
+aggstats_list %>% 
+  bind_rows(.id = "label") %>%
+  mutate(
+    # Getting day of week for each hour.
+    weekday = factor(weekdays(datetime)),
+    # Extracting hour.
+    hour = factor(format(datetime, "%H")),
+    ) %>% 
+  ggplot(aes(x = hour, color = label)) +
+  geom_point(aes(y = pm25)) +
+  geom_errorbar()
+
+
