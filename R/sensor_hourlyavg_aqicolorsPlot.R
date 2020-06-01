@@ -110,7 +110,6 @@ sensor_hourlyavg_aqicolorsPlot <- function(
   
   # Making Theme Dark
   plot <- plot +
-    theme_dark() +
     # Move legend
     theme(legend.position = "top")
     
