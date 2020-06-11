@@ -3,38 +3,102 @@ suppressMessages({
   devtools::load_all()
 })
 
-args <- list()
-
-args$delete_uncompress <- "TRUE" 
-args$output_dir <- "C://Users/iozeroff/Earthwatch/Anna Woodroof - Operation Healthy Air/7.Data and Field Reports/2020/Data-Visualization-Packages/"
-args$include_wind_map <- "FALSE"
-args$max_wind_distance <- "5"
-args$facet_covid_workweek <- "TRUE"
+# Rules for which Program uses which AQI scale
+program_aqi <- c("Boston" = "US",
+                 "Southern California" = "US",
+                 "India" = "IN",
+                 "Sri Lanka" = "US")
 
 # Sites to exclude:
 exclude <- c(
   "Undeployed",
-  # TODO: Find way to solve this duplicate label issue.
-  # For now simply filtering out US Embassy Delhi site.
   "US Embassy Delhi"
 )
 
 # Load sensor_catalog.
-sensor_catalog <- fetch_SensorCatalog() %>% 
+sites <- readRDS("data/sensor_catalog.rds") %>%
   dplyr::filter(
     # Removing exclude sites.
     !(site %in% exclude),
     # Removing NA values (When cells are blank, they sneak in).
-    !is.na(site))
+    !is.na(site)) %>%
+  pull(site) %>%
+  unique()
 
-# Get site names.
-sites <- unique(sensor_catalog$site)
+#------------------------------------------------------------------------------
+# Create Argument Parser
+if ( !exists("args", mode = "list") ) {
 
+  suppressPackageStartupMessages(library("argparse"))
+  # Instantiating parser.
+  parser <- ArgumentParser(
+    description = paste("Make data vizualization packages for sites:",
+                        paste(sites, collapse = ", "), sep = " ")
+  )
+
+  # Arguments
+  parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
+                      help="Print extra output [default]")
+
+  parser$add_argument("-q", "--quietly", action="store_false",
+                      dest="verbose", help="Print little output")
+
+  parser$add_argument("-o", "--output_dir", type = "character",
+                      default = "outputs/data-viz-pkgs",
+                      help = "Directory for file output [default %(default)s]")
+
+  parser$add_argument("-q", "--aqi_country", type = "character",
+                      required = TRUE,
+                      choices = aqi_country_opts,
+                      default = "United States",
+                      help = paste(
+                        "What countries AQI should be used in visualizations ",
+                        "[default %(default)s].", sep = " "
+                      )
+  )
+
+  parser$add_argument("-d", "--delete_uncompress", type = "logical",
+                      default = FALSE,
+                      help = paste(
+                        "TRUE/FALSE; delete the uncompressed version of",
+                        "the directory [default %(default)s].", sep = " "
+                      )
+  )
+
+  parser$add_argument("-f", "--facet_covid_workweek", type = "logical",
+                      default = TRUE,
+                      help = paste(
+                        "TRUE/FALSE; facet COVID plots by workweek/weekend",
+                        "[default %(default)s].", sep = " "
+                      )
+  )
+
+  parser$add_argument("-c", "--calibrate", type = "character",
+                      choices = calibration_opts,
+                      help = paste("If valid option given, apply calibration",
+                                   "to sensor data.", sep = " "))
+
+  args <- parser$parse_args()
+}
+
+#------------------------------------------------------------------------------
+# Iterating through datavis pkgs for all sites.
 for (i in 1:length(sites)) {
-  
-  args$site <- sites[i]
+
+  args[["site"]] <- sites[i]
   print(args$site)
-  
+
+  program <- load_SensorCatalog(site = args[["site"]]) %>%
+    pull(Program) %>% unique()
+
+  args[["aqi_country"]] <- program_aqi[program] %>%
+    countrycode::countrycode(args$aqi_country,
+                             origin = "iso2c",
+                             destination = "country.name")
+  print(paste("Using",
+              args$aqi_country,
+              "AQI scale.", sep = " "))
+
   try({
     suppressWarnings({
       source("scripts/make-site-dataviz-pkg.R")
