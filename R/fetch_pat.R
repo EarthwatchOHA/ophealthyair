@@ -1,5 +1,5 @@
 #' @title Ingest single Purple Air Time Series.
-#' 
+#'
 #' \code{fetch_pat} returns the Purple Air Time Series specified by matching label
 #' and id.
 #'
@@ -48,18 +48,17 @@
 #' }
 
 fetch_pat <- function(
-  label, 
-  id, 
+  label,
   pas,
   startdate = NULL,
   enddate = NULL,
   timezone = NULL
 ) {
   # Creates a new pat object, but intended to be used iteratively, with error and warning handlers.
-  
-  tryCatch( 
+
+  tryCatch(
     expr = {
-      pat <- AirSensor::pat_createNew(pas = pas, id = id, label = label,
+      pat <- AirSensor::pat_createNew(pas = pas, label = label,
                                       startdate = startdate, enddate = enddate,
                                       timezone = timezone)
       print(paste(label, ": ingestion successful."))

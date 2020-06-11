@@ -14,7 +14,7 @@
 #'   See For more details see the vignette: \code{vignette("pas_introduction",
 #'   package = "AirSensor")}.
 #' @param sensor_labels Character vector of sensor labels to be fetched.
-#' @param sensor_ids Integer vector of sensor id's to be fetched.
+#' @param sensor_ids Optional integer vector of sensor id's to be fetched.
 #' @param startdate Integer vector of 7-digit numeric date (ex. 20200231 = 31st
 #'   January, 2020) at which to begin lookup of sensor data. Length of startdate
 #'   must be equal to the length of enddate. NULL values can be passed, and will
@@ -37,7 +37,7 @@
 #'   "AirSensor")}.
 #'
 #' @examples
-#' \code{
+#' \dontrun{
 #' pas <- load_pas()
 #' labels <- c("226RAR_kitchen, "Red Acre Stow")
 #' ids <- c(29913, 29709)
@@ -51,41 +51,48 @@
 #' fetch_pat_list(pas = pas, sensor_labels = labels, sensor_ids = ids,
 #'                startdate = start, enddate = end)
 #' }
-#'
-#'
 
 fetch_pat_list <- function(
   pas,
   sensor_labels,
-  sensor_ids,
+  sensor_ids = NULL,
   startdate = NULL,
   enddate = NULL,
-  timezone = NULL,
-  output_path = "data/pat_list.rds"
+  timezone = NULL
 ) {
 
   # Creates list of pat objects from a pas object and vector of sensor labels and sensor ID's.
   # TODO: Add option for vectorized start and end dates.
   # TODO: Fix growing list.
 
-  if (!purrr::is_bare_vector(sensor_labels)) {
+  if ( !purrr::is_bare_vector(sensor_labels) ) {
     sensor_labels <- unlist(sensor_labels)
   }
-  if (!purrr::is_bare_vector(sensor_ids)) {
-    sensor_ids <- unlist(sensor_ids)
+
+  if ( !is.null(sensor_ids) ) {
+    if ( !purrr::is_bare_vector(sensor_ids) ) {
+      sensor_ids <- unlist(sensor_ids)
+    }
   }
-  if (length(startdate) != length(enddate)) {
+
+  if ( length(startdate) != length(enddate) ) {
     stop("startdate and enddate arguments must be of equal length.")
   }
-  if (length(startdate) > 1 & length(startdate) != length(sensor_labels)) {
-    stop("if passing a vector of startdates and enddates, length must of vectors must be equal to length of sensor_labels.")
+
+  if ( length(startdate) > 1 & length(startdate) != length(sensor_labels) ) {
+    stop(paste0("if passing a vector of startdates and enddates, length must ",
+                "of vectors must be equal to length of sensor_labels."))
   }
 
   # If start and enddate are null or singular values.
   if (length(startdate) <= 1) {
       suppressWarnings(expr = {
-      pat_list <- purrr::map2(.x = sensor_labels, .y = sensor_ids, .f = fetch_pat, pas = pas,
-                              startdate = startdate, enddate = enddate, timezone = timezone) %>%
+      pat_list <- purrr::map2(.x = sensor_labels,
+                              .f = fetch_pat,
+                              pas = pas,
+                              startdate = startdate,
+                              enddate = enddate,
+                              timezone = timezone) %>%
         rlang::set_names(sensor_labels)
     })
   }
@@ -93,16 +100,13 @@ fetch_pat_list <- function(
   if (length(startdate) > 1) {
     suppressWarnings(expr = {
       pat_list <- purrr::pmap(.l = list(label = sensor_labels,
-                                        id = sensor_ids,
                                         startdate = startdate,
-                                        enddate = enddate), .f = fetch_pat, pas = pas, timezone = timezone) %>%
+                                        enddate = enddate),
+                              .f = fetch_pat, pas = pas,
+                              timezone = timezone) %>%
         rlang::set_names(sensor_labels)
     })
   }
-  if (is.null(output_path)) {
-    return(pat_list)
-  } else {
-    saveRDS(pat_list, output_path)
-    invisible(pat_list)
-  }
+
+  invisible(pat_list)
 }
