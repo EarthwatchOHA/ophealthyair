@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta name="author" content="Mazama Science" />
+
+<meta name="date" content="2019-06-13" />
+
+<title>Purple Air Sensors</title>
+
+
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#header {
+text-align: center;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Purple Air Sensors</h1>
+<h4 class="author">Mazama Science</h4>
+<h4 class="date">2019-06-13</h4>
+
+
+
+<p>This vignette decribes some technical details of Purple Air Sensor internals.</p>
+<div id="general-description" class="section level2">
+<h2>General Description</h2>
+<p>The PurpleAir PA-II sensor tracks real-time atmospheric measurements including particulate matter concentrations (PM1.0, PM2.5, and PM10), temperature and humidity. The device is connected via wifi to the ThingSpeak “Internet of Things” platform which serves as the data store for sensor data.</p>
+<ul>
+<li>Useful resources:
+<ul>
+<li>.<a href="https://www2.purpleair.com/pages/technology">PurpleAir technology overview</a></li>
+<li>.<a href="https://www2.purpleair.com/community/faq">PurpleAir FAQ</a></li>
+<li>.<a href="https://www.aqmd.gov/aq-spec/product/purpleair-pa-ii">AQ-SPEC evaluation</a></li>
+</ul></li>
+</ul>
+</div>
+<div id="internal-hardware" class="section level2">
+<h2>Internal Hardware</h2>
+<div id="particle-detectors" class="section level3">
+<h3>Particle Detectors</h3>
+<p>PM concentration readings are provided by two <a href="http://www.aqmd.gov/docs/default-source/aq-spec/resources-page/plantower-pms5003-manual_v2-3.pdf">Plantower PMS5003 Particle Detectors</a>, each reporting on a separate data channel (A and B). These optical particle counters function by measuring the amount of light scattered by suspended particulates. A PMS5003 unit sends a laser through air sucked in by a fan, detects the light refracted, and counts the number of different-sized particles based on <a href="https://en.wikipedia.org/wiki/Mie_scattering">Mie scattering</a> algorithms. The final PM1.0, PM2.5, and PM10 concentrations are then calculated from these counts. <a href="https://www2.purpleair.com/community/faq#!hc-how-do-laser-particle-counters-work">Source</a></p>
+<p>This algorithm for calculating concentration relies on an assumed average particle density because not all particles have the same <a href="https://en.wikipedia.org/wiki/Particulates#Composition">composition</a>. This assumed particule density is noted to be a potential cause for PurpleAir monitors reading higher PM levels than federal monitors. <a href="https://www2.purpleair.com/community/faq#!hc-how-do-purpleair-sensors-compare-to-regulatory-particulate-matter-sensors">Source</a></p>
+<p>Finally, the PM2.5 AQI provided by the PurpleAir unit is averaged over ~80 seconds for firmware versions 3.00 and ~120 seconds for version 4.00 and later. Other regulatory groups often give an AQI that represents a 24 hour average, which may appear to exaggerate the PurpleAir data on comparison. <a href="https://www2.purpleair.com/community/faq#!hc-how-do-purpleair-sensors-compare-to-regulatory-particulate-matter-sensors">Source</a></p>
+<p>A Plantower particle detector’s effective range for PM2.5 lies between 0 and 500 ug/m3, even though it can still report measurements up to 1000 ug/m3 and beyond.</p>
+<p>More on optical particle counting can be found <a href="http://www.cas.manchester.ac.uk/restools/instruments/aerosol/opc/">here</a>.</p>
+</div>
+<div id="temperaturehumidity-sensor" class="section level3">
+<h3>Temperature/Humidity Sensor</h3>
+<p>Temperature and humidity are both measured by a single <a href="https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BME280-DS002.pdf">Bosch Sensortec Intergrated Environmental Sensor Unit BME280</a>. PurpleAir notes that temperature readings may be elevated due to the sensor’s position within the monitor casing. <a href="https://www2.purpleair.com/pages/technology">Source</a></p>
+<p>The unit’s ‘operational’ temperature sensor range lies between -40°C to +85°C, but narrows its ‘full-accuracy’ to between 0°C and 65°C. The humidity sensor is operational between -40°C and 85°C, and can measure from 0 to 100 %RH.</p>
+</div>
+</div>
+<div id="internal-firmware" class="section level2">
+<h2>Internal Firmware</h2>
+<div id="sampling-protocol" class="section level3">
+<h3>Sampling Protocol</h3>
+<p>The firmware in each PA sensor is in charge of communicating with the internal particle detectors and averaging instantaneous measurements over a sampling period before reporting the sampling-period averaged value back over wifi.</p>
+<p>From internal communication with PurpleAir:</p>
+<pre><code>Do the reported pm2.5 values in the raw data represent instantaneous values or 
+does the PA sensor firmware do some averaging? If the firmware does averaging, 
+what is the underlying sampling period -- i.e. how many particle counter
+measurements does the firmware average together before reporting every 80/120 
+seconds?
+
+----- &gt;8 -----
+
+The PM data is averaged over a sampling period. For PA-II and PA-II-SD sensors
+that contain 2 laser counters (Channel A and Channel B) they alternate averaging
+5 1-second measurements over the sampling period, which is 80 seconds for
+firmware versions 3.00 and orders and 120 seconds for firmware versions 4.00 and
+later. So Channel A will measure to 5 seconds and then Channel B will measure
+for 5 seconds, then back to Channel A, etc. At the end of the sampling period
+Channel A will be a cumulative 40s/60s average over the sampling period of
+80s/120s and Channel B will be a cumulative 40s/60s average of the other half of
+that 80s/120s sampling period.
+
+----- &gt;8 -----
+
+Just to make sure I&#39;ve got it:
+
+If each letter is 1 sec then we have, for an 80 second sampling period:
+
+AAAAA-----AAAAA-----AAAAA-----AAAAA-----AAAAA-----AAAAA-----AAAAA-----AAAAA-----
+-----BBBBB-----BBBBB-----BBBBB-----BBBBB-----BBBBB-----BBBBB-----BBBBB-----BBBBB
+
+So the pm2.5 value reported for the A channel at the end of 80 seconds actually
+consists of 40 separate measurements, spaced as shown. And similarly for the B
+channel.
+
+Is that correct?
+
+----- &gt;8 -----
+
+That is correct!</code></pre>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

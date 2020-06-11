@@ -36,31 +36,6 @@
 ehthumbs.db
 Thumbs.db
 
-# Dataset Files #
-*.csv
-*.xlsx
-
 # Data Files #
-data/pas*
-data/pat*
-data/sensor*
-
-# GeoSpatial Files #
-*.tif
-
-# Resource and Research Files (apart from README) #
-*.pdf
-*.docx
-
-# Outputs Image Files #
-*.png
-*.jpg
+data/*
 .Rproj.user
-packrat/lib*/
-packrat/src/
-inst/doc
-
-# Folders Not Necessary for Repo #
-resources/
-outputs/
-benchmarking/
