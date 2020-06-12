@@ -41,7 +41,6 @@ data/spatial/
 .Rproj.user
 .Rhistory
 .RData
-.Rbuildignore
 
 # Rendered Vignettes #
 vignettes/*.html
