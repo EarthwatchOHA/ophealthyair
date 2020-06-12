@@ -39,3 +39,17 @@ Thumbs.db
 # Data Files #
 data/spatial/
 .Rproj.user
+.Rhistory
+.RData
+.Rbuildignore
+
+# Rendered Vignettes #
+vignettes/*.html
+vignettes/*.pdf
+
+# Rendered Reports
+reporting/*.html
+reporting/*.html
+
+# Rendered README #
+README.html
