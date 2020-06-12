@@ -37,58 +37,95 @@ if ( !exists("args", mode = "list") ) {
   suppressPackageStartupMessages(library("argparse"))
   # Instantiating parser.
   parser <- ArgumentParser(
-    description = "Make a site data vizualization package."
+    description = "Make a site data vizualization package.",
+    add_help = TRUE
     )
 
-  # Arguments
-  parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
+  # Required Arguments
+  required = parser$add_argument_group("Required Arguments")
+
+  required$add_argument("-s", "--site", type = "character",
+                        required = TRUE, choices = site_opts,
+                        metavar = "",
+                        help = paste(
+                          "Deployment site (based on Sensor Catalog)",
+                          "to make visualization package for.",
+                          "Argument type: %(type)s",
+                          "Options are:",
+                          paste(site_opts, collapse = "; "), sep = " "))
+
+  required$add_argument("-a", "--aqi_country", type = "character",
+                        required = TRUE,
+                        choices = aqi_country_opts,
+                        default = "United States",
+                        metavar = "",
+                        help = paste(
+                          "What countries AQI should be used in",
+                          "visualizations. Argument type: %(type)s",
+                          "Allowed options are:",
+                          paste(aqi_country_opts, collapse = ", "),
+                          "[default %(default)s].", sep = " "
+                          )
+                        )
+
+  # Optional Arguments
+  parser$add_argument("-v", "--verbose", action="store_true",
+                      default=TRUE,
                       help="Print extra output [default]")
 
   parser$add_argument("-q", "--quietly", action="store_false",
                       dest="verbose", help="Print little output")
 
-  parser$add_argument("-s", "--site", type = "character",
-                      required = TRUE, choices = site_opts,
-                      help = paste("Deployment site (based on Sensor Catalog)",
-                                   "to make visualization package for.",
-                                   sep = " "))
-
   parser$add_argument("-o", "--output_dir", type = "character",
                       default = "outputs/data-viz-pkgs",
-                      help = "Directory for file output [default %(default)s]")
+                      help = paste("Directory for file output",
+                                   "Argument type: %(type)s",
+                                   "[default %(default)s]", sep = " "))
 
-  parser$add_argument("-q", "--aqi_country", type = "character",
-                      required = TRUE,
-                      choices = aqi_country_opts,
-                      default = "United States",
+  parser$add_argument("-c", "--calibrate", type = "logical",
+                      metavar = "",
+                      default = FALSE,
                       help = paste(
-                        "What countries AQI should be used in visualizations ",
-                        "[default %(default)s].", sep = " "
+                        "TRUE/FALSE; if TRUE, must also supply",
+                        "--calibration_model [default %(default)s].",
+                        sep = " "
                         )
                       )
 
+  parser$add_argument("-m", "--calibration_model",
+                      type = "character",
+                      metavar = "",
+                      choices = calibration_opts,
+                      help = paste(
+                        "If --calibrate is TRUE, apply inputted calibration",
+                        "to sensor data. Allowable options are:",
+                        paste(calibration_opts, collapse = " "), sep = " "))
+
   parser$add_argument("-d", "--delete_uncompress", type = "logical",
-                      default = FALSE,
+                      default = FALSE, metavar = "",
                       help = paste(
                         "TRUE/FALSE; delete the uncompressed version of",
                         "the directory [default %(default)s].", sep = " "
                         )
                       )
 
-  parser$add_argument("-f", "--facet_covid_workweek", type = "logical",
+  parser$add_argument("-f", "--facet_covid_workweek",
+                      type = "logical",
                       default = TRUE,
+                      metavar = "",
                       help = paste(
                         "TRUE/FALSE; facet COVID plots by workweek/weekend",
                         "[default %(default)s].", sep = " "
                         )
                       )
 
-  parser$add_argument("-c", "--calibrate", type = "character",
-                      choices = calibration_opts,
-                      help = paste("If valid option given, apply calibration",
-                                   "to sensor data.", sep = " "))
-
   args <- parser$parse_args()
+}
+
+#------------------------------------------------------------------------------
+# Input Control:
+if ( args$calibrate & is.null(args$calibration_model) ) {
+  stop("If --calibrate is TRUE, calibration model must be specified.")
 }
 
 #------------------------------------------------------------------------------
@@ -112,8 +149,8 @@ suppressMessages({
 pat_list <- readRDS("data/pat_list_qcd.rds")
 sensor_list <- readRDS("data/sensor_list.rds")
 
-if ( !is.null(args$calibrate) ) {
-  proxy_site <- args$calibrate
+if ( args$calibrate ) {
+  proxy_site <- args$calibration_model
   suppressMessages({
     source("scripts/calibrate.R")
   })

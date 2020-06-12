@@ -50,6 +50,7 @@
 fetch_pat <- function(
   label,
   pas,
+  id = NULL,
   startdate = NULL,
   enddate = NULL,
   timezone = NULL
@@ -58,12 +59,17 @@ fetch_pat <- function(
 
   tryCatch(
     expr = {
-      pat <- AirSensor::pat_createNew(pas = pas, label = label,
-                                      startdate = startdate, enddate = enddate,
+      pat <- AirSensor::pat_createNew(pas = pas,
+                                      label = label,
+                                      id = id,
+                                      startdate = startdate,
+                                      enddate = enddate,
                                       timezone = timezone)
+
       print(paste(label, ": ingestion successful."))
       return(pat)
     },
+
     error = function(e) {
       message(paste(label, ":", e))
       return(paste(e))

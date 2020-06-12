@@ -5,13 +5,12 @@ devtools::load_all()
 
 parameters <- c("pm25", "humidity", "temperature")
 
-# Making list of PA-II sensors.
+# Make list of PA-II sensors.
 pa_ii_sensors <- 
   load_SensorCatalog() %>% 
   filter(
     # Filter sensor_catalog for sensors of type PA-II.
-    stringr::str_detect(string = `Sensor Type`, pattern = "PA-II"),
-    # Filter sensor_catalog for deployed sensors.
+    stringr::str_detect(string = `Sensor Type`, pattern = "PA-II")
     ) %>% pull(label)
 
 # Filter pat_list for just PA-II sensors. 
@@ -21,7 +20,9 @@ pat_list <- pat_list[names(pat_list) %in% pa_ii_sensors]
 pat_test <- purrr::map_lgl(.x = pat_list, .f = pat_isPat)
 pat_list <- pat_list[pat_test]
 # Check elements of pat_list whether time series is empty or not.
-empty_test <- purrr::map_lgl(.x = pat_list, .f = function(x) nrow(pat_extractData(x)) > 1)
+empty_test <- purrr::map_lgl(.x = pat_list,
+                             .f = function(x) nrow(pat_extractData(x)) > 1)
+
 pat_list <- pat_list[empty_test]
 
 pat_list_qcd <- pat_list %>% 
@@ -37,13 +38,14 @@ pat_list_qcd <- pat_list %>%
              flag_columns = TRUE)
 
 # Make a sensor object for every pat for every parameter.
+
 # Empty list.
 sensor_list <- list()
-# One list element for every pat.
+
 for (i in 1:length(pat_list_qcd)) {
   label <- pat_list_qcd[[i]][["meta"]][["label"]]
   sensor_list[[label]] <- list()
-  # Making a sensor object for every parameter.
+  # Make sensor object for each parameter.
   for (j in 1:length(parameters)) {
     parameter <- parameters[[j]]
     

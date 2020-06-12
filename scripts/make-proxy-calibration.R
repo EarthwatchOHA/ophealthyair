@@ -1,67 +1,89 @@
 # Make Proxy Calibration Equations for Programs:
 #------------------------------------------------------------------------------
-# Instantiate Argument Parsing
-
-
+# Env Setup
+suppressMessages({
+  library(dplyr)
+  library(ropenaq)
+  library(AirSensor)
+  library(modelr)
+  library(purrr)
+  library(broom)
+  devtools::load_all()
+})
+#------------------------------------------------------------------------------
+# Command Line Interface
 # TODO: Need to access AWS data further back than 90 days.
 # TODO: Seasonal models
-# TODO: Rename model_indicator.
+# TODO: Rename indicator.
 
-# Define Options for Choice Arguments 
+# Define Options for Choice Arguments
 mod_select_stat_opts <- c(
   "R2",
   "RMSE",
   "AIC"
 )
 
+# Load site sensor_catalog metadata.
+site_opts <- load_SensorCatalog() %>%
+  dplyr::filter(Collocated) %>%
+  dplyr::pull(site) %>%
+  unique()
+
 if ( !exists("args", mode = "list") ) {
   suppressPackageStartupMessages(library("argparse"))
-  
+
   # Instantiating parser.
-  parser <- ArgumentParser(description = "Make a site data vizualization package.")
-  # Arguments
+  parser <- ArgumentParser(
+    description = paste(
+      "Generate proxy-calibration model from collocated sensors (according to",
+      "Sensor Catalog) at a single Collocation Site. Select best model of",
+      "collocated sensors using --indicator.", sep = " ")
+    )
+
+  # Required Arguments
+  required = parser$add_argument_group("Required Arguments")
+
+  required$add_argument("-s", "--site", action="store",
+                        required = TRUE, choices = site_opts,
+                        help = paste("Name of site to make calibration from",
+                                     "Argument type: %(type)s",
+                                     "[default %(default)s]", sep = " "))
+
+  # Optional Arguments
   parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
                       help="Print extra output [default]")
-  
-  parser$add_argument("-q", "--quietly", action="store_false", 
+
+  parser$add_argument("-q", "--quietly", action="store_false",
                       dest="verbose", help="Print little output")
-  
-  parser$add_argument("-s", "--site", action="store", required = TRUE,
-                      help = "Name of site to calibrate [default %(default)s]")
-  
+
   parser$add_argument("-i", "--indicator", action = "store",
                       choices = mod_select_stat_opts,
-                      default = "R2", required = TRUE, 
-                      help = "Statistic to select best model [default %(default)s]")
-  
-  parser$add_argument("-a", "--adjusted", action = "store", default = TRUE, 
-                      help = "If indicator R2, boolean adjust R2 [default %(default)s]")
-  
+                      default = "R2",
+                      help = paste("Statistic to select best model",
+                                   "Argument type: %(type)s",
+                                   "[default %(default)s]", sep = " "))
+
+  parser$add_argument("-a", "--adjusted", action = "store", default = TRUE,
+                      help = paste("If indicator R2, boolean adjust R2",
+                                   "[default %(default)s]", sep = " "))
+
   args <- parser$parse_args()
 }
 
 #------------------------------------------------------------------------------
-# Env Setup
-library(dplyr)
-devtools::load_all()
-library(ropenaq)
-library(AirSensor)
-library(modelr)
-library(purrr)
-library(broom)
-source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-equation.R")
-source("C://Users/iozeroff/Data-Science/R-Projects/useful/model-mutate-functions.R")
-#------------------------------------------------------------------------------
+# Input Control
 
-mod_select_stat <- args$indicator  
-  
-# Load site sensor_catalog metadata.  
+
+#------------------------------------------------------------------------------
+mod_select_stat <- args$indicator
+
+# Load site sensor_catalog metadata.
 sensor_catalog <- load_SensorCatalog(site = args$site)
 # Load site pats.
 pat_list <- load_pat_list(site = args$site)
 
 # Get Collocation Site Name from Sensor Catalog
-ref_site <- sensor_catalog %>% 
+ref_site <- sensor_catalog %>%
   distinct(`Collocation Site`) %>%
   pull()
 
@@ -69,60 +91,63 @@ ref_site <- sensor_catalog %>%
 all_ref_sites <- aq_locations()
 
 if ( !(ref_site %in% all_ref_sites$location) ) {
-  stop("ref_site could not be found.")
+  stop("Reference Monitor site could not be found.")
 }
 
 # Site metadata.
-ref_meta <- all_ref_sites %>% 
+ref_meta <- all_ref_sites %>%
   filter(location == ref_site)
 
-# Get Collocation Site Reference Monitor Data  
-ref_data <- aq_measurements(location = ref_meta$locationURL, parameter = "pm25") %>% 
-  select(datetime = "dateUTC", pm25 = value) %>% 
+print("Loading Reference Monitor data.")
+
+# Get Collocation Site Reference Monitor Data
+ref_data <- aq_measurements(location = ref_meta$locationURL, parameter = "pm25") %>%
+  select(datetime = "dateUTC", pm25 = value) %>%
   filter(pm25 >= 0)
 
+print("Applying QAQC to Purple Air data.")
 source("scripts/qaqc.R")
 
 # Loading AirSensor objects.
 sensor_list <- readRDS("data/sensor_list.rds")
 # Subset AirSensors with PM data.
-pm_data <- sensor_list %>% 
-  map("pm25") %>% 
+pm_data <- sensor_list %>%
+  map("pm25") %>%
   map(.f = function(x) dplyr::rename(x$data, pm25 = 2))
-# Subset AirSensors with Temp data.  
-temp_data <- sensor_list %>% 
-  map("temperature") %>% 
+# Subset AirSensors with Temp data.
+temp_data <- sensor_list %>%
+  map("temperature") %>%
   map(.f = function(x) rename(x$data, temperature = 2))
 # Subset AirSensors with Humidity data.
-humidity_data <- sensor_list %>% 
-  map("humidity") %>% 
+humidity_data <- sensor_list %>%
+  map("humidity") %>%
   map(.f = function(x) rename(x$data, humidity = 2))
 
 # Join PM Data to Reference Data
-pm_data <- pm_data %>% 
+pm_data <- pm_data %>%
   map(.f = function(x) dplyr::inner_join(x = x,
                                          y = ref_data,
                                          by = "datetime",
                                          suffix = c("_pa", "_ref"))
   )
 
+print("Generating calibration models.")
 # Combining all sensor variables into single dataframes for modelling.
-data <- 
+data <-
   map2(.x = pm_data, .y = temp_data,
                     .f = left_join, by = "datetime") %>%
-  map2(.y = humidity_data, 
-              .f = left_join, by ="datetime") %>% 
+  map2(.y = humidity_data,
+              .f = left_join, by ="datetime") %>%
   # Filter complete cases.
   map(.f = function(x) x[complete.cases(x), ])
 
 # Make Models
-models <- data %>% 
+models <- data %>%
   map(
     .f = function(x) lm(pm25_ref ~ pm25_pa + temperature + humidity, data = x)
     )
 
-# TODO: Add Root Mean Square Error
-mod_summary <- 
+mod_summary <-
   data.frame(
     label = names(models),
     p_value = map_dbl(.x = models, .f = extract_p),
@@ -132,22 +157,21 @@ mod_summary <-
                           ~ sqrt(mean((.x$residuals) ^ 2))
                           ),
     missing = map_dbl(.x = pm_data, .f = function(x) sum(is.na(x$pm25_pa))),
-    row.names = NULL, 
+    row.names = NULL,
     stringsAsFactors = FALSE
     )
 
 print(mod_summary)
 
 if ( mod_select_stat == "R2") {
-  best_mod <- mod_summary %>% 
-    top_n(n = 1, wt = !!as.symbol(mod_select_stat)) %>% 
+  best_mod <- mod_summary %>%
+    top_n(n = 1, wt = !!as.symbol(mod_select_stat)) %>%
     pull(label)
 } else if ( mod_select_stat == "AIC" | mod_select_stat == "RMSE") {
-  best_mod <- mod_summary %>% 
-    top_n(n = -1, wt = !!as.symbol(mod_select_stat)) %>% 
+  best_mod <- mod_summary %>%
+    top_n(n = -1, wt = !!as.symbol(mod_select_stat)) %>%
     pull(label)
 }
-
 
 calibration <- list()
 calibration[["meta"]] <- ref_meta
@@ -167,3 +191,5 @@ out_file <- paste(deploy_site4file, ".rds", sep = "")
 out_path <- paste("data", "calibration-models", out_file, sep = "/")
 
 saveRDS(calibration, out_path)
+
+print(paste("Model saved to", outpath, sep = " "))

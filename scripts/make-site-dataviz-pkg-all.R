@@ -1,5 +1,7 @@
 # Makes data visualization packages for all sites in Sensor Catalog.
 suppressMessages({
+  library(dplyr)
+  library(pavisualizR)
   devtools::load_all()
 })
 
@@ -17,7 +19,7 @@ exclude <- c(
 
 # Load sensor_catalog.
 sites <- readRDS("data/sensor_catalog.rds") %>%
-  dplyr::filter(
+  filter(
     # Removing exclude sites.
     !(site %in% exclude),
     # Removing NA values (When cells are blank, they sneak in).
@@ -33,7 +35,7 @@ if ( !exists("args", mode = "list") ) {
   # Instantiating parser.
   parser <- ArgumentParser(
     description = paste("Make data vizualization packages for sites:",
-                        paste(sites, collapse = ", "), sep = " ")
+                        paste(sites, collapse = ";  "), sep = " ")
   )
 
   # Arguments
@@ -47,20 +49,10 @@ if ( !exists("args", mode = "list") ) {
                       default = "outputs/data-viz-pkgs",
                       help = "Directory for file output [default %(default)s]")
 
-  parser$add_argument("-q", "--aqi_country", type = "character",
-                      required = TRUE,
-                      choices = aqi_country_opts,
-                      default = "United States",
-                      help = paste(
-                        "What countries AQI should be used in visualizations ",
-                        "[default %(default)s].", sep = " "
-                      )
-  )
-
   parser$add_argument("-d", "--delete_uncompress", type = "logical",
                       default = FALSE,
                       help = paste(
-                        "TRUE/FALSE; delete the uncompressed version of",
+                        "TRUE/FALSE; delete the unzipped version of",
                         "the directory [default %(default)s].", sep = " "
                       )
   )
@@ -73,10 +65,14 @@ if ( !exists("args", mode = "list") ) {
                       )
   )
 
-  parser$add_argument("-c", "--calibrate", type = "character",
-                      choices = calibration_opts,
-                      help = paste("If valid option given, apply calibration",
-                                   "to sensor data.", sep = " "))
+  parser$add_argument("-c", "--calibrate", type = "logical",
+                      default = FALSE,
+                      help = paste(
+                        "If TRUE, apply calibration from the nearest",
+                        "model. Currently, sites in the Boston program",
+                        "use the Von Hillern calibration. Sites in the",
+                        "India and Sri Lanka programs use the Lodhi Road",
+                        "calibration [default %(default)s].", sep = " "))
 
   args <- parser$parse_args()
 }
@@ -92,8 +88,7 @@ for (i in 1:length(sites)) {
     pull(Program) %>% unique()
 
   args[["aqi_country"]] <- program_aqi[program] %>%
-    countrycode::countrycode(args$aqi_country,
-                             origin = "iso2c",
+    countrycode::countrycode(origin = "iso2c",
                              destination = "country.name")
   print(paste("Using",
               args$aqi_country,

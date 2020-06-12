@@ -8,7 +8,7 @@ output:
     toc_float: true
     df_print: paged
 params:
-  program: "All"
+  program: "Sri Lanka"
   
 ---
 
@@ -16,7 +16,7 @@ params:
 library(here)
 library(dplyr)
 library(ggplot2)
-devtools::load_all("C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+library(AirSensor)
 devtools::load_all()
 library(purrr)
 library(formattable)
@@ -27,7 +27,6 @@ knitr::opts_knit$set(root.dir = here::here())
 
 ```{r ingestion, include=FALSE}
 # Define problematic cutoffs for looking more closely at site sensors.
-# TODO: Add Pct_Cutoff and Rsquared Cutoff as params to the rmd?
 MazamaSpatialUtils::setSpatialDataDir("data/spatial")
 
 pat_list <- load_pat_list()
@@ -63,6 +62,17 @@ if ( any(!pat_test) ){
   
 }  
 
+# Making filter function safe.
+safe_pat_filterDate <- purrr::safely(.f = pat_filterDate)
+
+# Safely filters pat_list for past week.
+filter_results <- pat_list %>% 
+  purrr::map(safe_pat_filterDate, days = 7) %>% 
+  purrr::transpose()
+  
+# Getting pats from results
+pat_list_wk <- filter_results$result
+
 # Checks if pats contains data after week filter.
 empty_test <- purrr::map_lgl(pat_list, pat_isEmpty)    
 
@@ -85,16 +95,6 @@ if ( any(empty_test) ) {
 
 }
 
-# Making filter function safe.
-safe_pat_filterDate <- purrr::safely(.f = pat_filterDate)
-
-# Safely filters pat_list for past week.
-filter_results <- pat_list %>% 
-  purrr::map(safe_pat_filterDate, days = 7) %>% 
-  purrr::transpose()
-  
-# Getting pats from results
-pat_list_wk <- filter_results$result
 # Getting errors.
 filter_errors <- filter_results$error %>%
   purrr::compact() %>% 
@@ -110,10 +110,13 @@ if ( length(issues_list) >= 1 ) {
   pat_errors <- reshape::melt(issues_list) %>%
     select(`Sensor Label` = 2, Error = 1) %>%
     # Cleaning Error Message.
-    mutate(Error = stringr::str_replace(.data$Error, pattern = "^.*, :", replacement = "Error: ")) %>%
+    mutate(Error = stringr::str_replace(.data$Error,
+                                        pattern = "^.*, :",
+                                        replacement = "Error: ")) %>%
     mutate(
       Error = case_when(
-       stringr::str_detect(Error, "pat does not contain requested date range") ~ "Error: sensor has not uploaded data in the past seven days.",
+       stringr::str_detect(Error,
+                           "pat does not contain requested date range") ~ "Error: sensor has not uploaded data in the past seven days.",
        stringr::str_detect(Error, "^Empty$") ~ "Error: Sensor detected by PurpleAir.com but no data loaded.",
        # TODO Add more case interpretation.
        TRUE ~ paste("Unexpected ", Error)
@@ -157,13 +160,13 @@ Below you will find graphs that you can evaluate for possible hardware or report
 ```{r Weekly SoH Stats, echo=FALSE}
 
 # Define the functions we want pat_dailySoH to run on our sensors.
-desired_functions = c("PurpleAirSoH_dailyPctReporting",
-                      "PurpleAirSoH_dailyPctValid",
-                      "PurpleAirSoH_dailyABFit")
+SoH_functions <- c("PurpleAirSoH_dailyPctReporting",
+                  "PurpleAirSoH_dailyPctValid",
+                  "PurpleAirSoH_dailyABFit")
 
 # Generates daily State of Health values for every pat in pat_list.
-pat_list_weekly_SoH <- map(pat_list, AirSensor::pat_dailySoH,
-                         SoH_functions = desired_functions) %>% 
+pat_list_weekly_SoH <- purrr::map(pat_list, AirSensor::pat_dailySoH,
+                                  SoH_functions = SoH_functions) %>% View()
   bind_rows(.id = "sensor") %>% # Binds all into single df.
   select(-c("pm25_A_pm25_B_slope", "pm25_A_pm25_B_intercept")) %>% # Adds site variable from catalog.
   group_by(sensor) %>% 

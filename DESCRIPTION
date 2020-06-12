@@ -2,18 +2,15 @@ Package: ophealthyair
 Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Ian",
+           family = "Ozeroff",
            role = c("aut", "cre"),
-           email = "first.last@example.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+           email = "OHA@earthwatch.org")
 Description: What the package does (one paragraph).
 License: GNU General Public License v3.0
 Encoding: UTF-8
 LazyData: true
 Suggests: 
-    knitr,
-    rmarkdown,
     testthat
 VignetteBuilder: knitr
 Imports: 
@@ -26,8 +23,12 @@ Imports:
     MazamaSpatialUtils,
     here,
     lubridate,
-    magrittr,
-    pavisualizR
+    pavisualizR,
+    argparse,
+    formattable,
+    knitr,
+    rmarkdown,
+    kableExtra
 RoxygenNote: 7.1.0
 Depends: 
-    R (>= 2.10)
+    R (>= 3.50)

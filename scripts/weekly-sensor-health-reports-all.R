@@ -1,3 +1,6 @@
+# This script generates the Weekly Sensor Health Reports for all Programs.
+# Saves reports to specified folder.
+
 # This script generates the Weekly Sensor Health Report for given Program
 # Saves reports in Specified folder.
 suppressMessages({
@@ -5,10 +8,10 @@ suppressMessages({
 })
 
 # TODO: Add start and end date params.
-
 setwd(here::here())
 input_path <- "reporting/weekly-sensor-health-report.rmd"
 Sys.setenv(RSTUDIO_PANDOC="C:/Program Files/RStudio/bin/pandoc")
+
 #------------------------------------------------------------------------------
 # Command Line Interface
 program_opts <- load_SensorCatalog() %>%
@@ -22,25 +25,12 @@ if ( !exists("args", mode = "list") ) {
   # Instantiating parser.
   parser <- ArgumentParser(
     description = paste(
-      "Generate the Weekly Sensor Health Report for given Program.",
+      "Generate the Weekly Sensor Health Report for all Programs",
+      "(as specified by the Sensor Catalog):",
+      paste(program_opts, collapse = ", "), ".",
       "Saves reports in --output_dir.", sep = ""
     ),
     add_help = TRUE
-  )
-  # Required Arguments
-  required = parser$add_argument_group("Required Arguments")
-  required$add_argument("-p", "--program",
-                      type = "character",
-                      choices = program_opts,
-                      metavar = "",
-                      required = TRUE,
-                      help = paste(
-                        "Statistic to select best model",
-                        "Argument type: %(type)s",
-                        "Allowable options are:",
-                        paste(program_opts, collapse = ", "),
-                        "[default %(default)s]", sep = " "
-                      )
   )
   # Optional Arguments
   parser$add_argument("-o", "--output_dir",
@@ -55,12 +45,15 @@ if ( !exists("args", mode = "list") ) {
 # Input Control
 
 #------------------------------------------------------------------------------
-filename <- paste(args$program, ".html", sep = "")
-rmarkdown::render(input = input_path,
-                  output_dir = args$output_dir,
-                  output_file = filename,
-                  params = list(
-                    program = args$program
-                  ))
+for (i in 1:length(program_opts)) {
+  program <- program_opts[i]
+  filename <- paste(program, ".html", sep = "")
+  rmarkdown::render(input = input_path,
+                    output_dir = args$output_dir,
+                    output_file = filename,
+                    params = list(
+                      program = program
+                    ))
 
-print(paste(args$program, "report complete."))
+  print(paste(program, "report complete."))
+}
