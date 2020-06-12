@@ -1,9 +1,11 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 
-scripts/
-reporting/
-revised-functions/
-outputs/
-inputs/
-useful/
+
+^resources$
+^reporting$
+^revised-functions$
+^scripts$
+^desktop\.ini$
+^benchmarking$
+^ophealthyair\.Rproj$
