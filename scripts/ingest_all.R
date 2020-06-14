@@ -83,8 +83,8 @@ IsDate <- function(mydate, date.format = "%d/%m/%y") {
 }
 
 if ( !is.character(args$default_startdate) |
-     !IsDate(test, date.format = "%Y%m%d") |
-     !IsDate(test, date.format = "%Y-%m-%d") ) {
+     !IsDate(args$default_startdate, date.format = "%Y%m%d") |
+     !IsDate(args$default_startdate, date.format = "%Y-%m-%d") ) {
 
   stop(paste("default_startdate must be a character string date in one of",
              "the following formats: 'YYYYmmdd' or 'YYYY-mm-dd'.", sep = " "))
