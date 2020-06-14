@@ -9,6 +9,8 @@ The Command Line Interfaces used by this package use the package 'argparse' and 
 To use this scripts in this package, run the following R code once after installation.
 
 ```
+devtools::install()
+
 devtools::install_github("MazamaScience/AirSensor")
 devtools::install_github("iozeroff/pavisualizR")
 
@@ -23,7 +25,6 @@ MazamaSpatialUtils::setSpatialDataDir("data/spatial")
 MazamaSpatialUtils::installSpatialData()
 
 ```
-
 
 ## Usage
 
@@ -163,10 +164,11 @@ Generate weekly sensor-health-reports for all programs (see --help for list).
 
 ### make-proxy-calibration.R
 
+Create new proxy-model calibration from collocated site (based on Sensor Catalog).
 
 ### make-proxy-calibration-all.R
 
-
+Create new proxy-models calibrations for all collocated sites (based on Sensor Catalog).
 
 ## License
 GPL-3

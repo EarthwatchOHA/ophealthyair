@@ -8,7 +8,7 @@ output:
     toc_float: true
     df_print: paged
 params:
-  program: "Sri Lanka"
+  program: "India"
   
 ---
 
@@ -17,9 +17,9 @@ library(here)
 library(dplyr)
 library(ggplot2)
 library(AirSensor)
-devtools::load_all()
 library(purrr)
 library(formattable)
+devtools::load_all()
 
 knitr::opts_knit$set(root.dir = here::here())
 
@@ -157,7 +157,7 @@ Below you will find graphs that you can evaluate for possible hardware or report
 
 
 ## Sensor Weekly Statistics
-```{r Weekly SoH Stats, echo=FALSE}
+```{r Weekly SoH Stats, echo=FALSE, message=FALSE}
 
 # Define the functions we want pat_dailySoH to run on our sensors.
 SoH_functions <- c("PurpleAirSoH_dailyPctReporting",
@@ -166,37 +166,40 @@ SoH_functions <- c("PurpleAirSoH_dailyPctReporting",
 
 # Generates daily State of Health values for every pat in pat_list.
 pat_list_weekly_SoH <- purrr::map(pat_list, AirSensor::pat_dailySoH,
-                                  SoH_functions = SoH_functions) %>% View()
+                                  SoH_functions = SoH_functions) %>% 
   bind_rows(.id = "sensor") %>% # Binds all into single df.
   select(-c("pm25_A_pm25_B_slope", "pm25_A_pm25_B_intercept")) %>% # Adds site variable from catalog.
   group_by(sensor) %>% 
   summarize_if(is.numeric, mean)
 
 # Creates hourly aggregated datasets from each sensor. 
-# Getting error in `[[<-.data.frame`(`*tmp*`, outlierFlagName, value = FALSE) : replacement has 1 row, data has 0
-aggregated <- purrr::map(pat_list, .f = pat_aggregate)
+FUN_mean <- function(x) mean(x, na.rm = TRUE)
+aggregated <- purrr::map(pat_list, .f = pat_aggregate, FUN = FUN_mean)
 
-# Shows how many of the hours have at least 20 observations for A and for B. 
-sensor_weekly_SoH <- aggregated %>% 
-  bind_rows(.id = "sensor") %>% 
-  mutate(usable_A = ifelse(pm25_A_count >= 20, TRUE, FALSE),
-         usable_B = ifelse(pm25_B_count >= 20, TRUE, FALSE)) %>% 
-  group_by(sensor) %>% 
-  summarize(pct_usable_hours_A = sum(usable_A)/ 168,
-            pct_usable_hours_B = sum(usable_B)/ 168) %>% 
+# Shows how many of the hours have at least 20 observations. 
+sensor_weekly_SoH <- pat_list %>%
+  purrr::map(.f = pat_createAirSensor, FUN = PurpleAirQC_hourly_AB_00) %>% 
+  purrr::map(.f = function(x) sensor_extractData(x) %>% 
+               rename(pm25 = 2)) %>% 
+  bind_rows(.id = "sensor") %>%
+  group_by(sensor) %>%
+  summarize(
+    usable_hrs = sum(!is.na(pm25)),
+    pct_usable_hrs = usable_hrs / 168
+    ) %>% 
   left_join(pat_list_weekly_SoH, by = "sensor") %>% 
-  left_join(select(sensor_catalog, site, label), by = c("sensor" = "label")) %>%
+  left_join(select(sensor_catalog, site, label),
+            by = c("sensor" = "label")) %>%
   arrange(site, sensor)
 ```
 
 
-```{r SOH Statistics Table, echo=FALSE}
+```{r SOH Statistics Table, echo=FALSE, echo=FALSE}
 
 # Defines Columns to include in table.
 table_cols <- c(
   "sensor", 
-  "pct_usable_hours_A",
-  "pct_usable_hours_B",
+  "pct_usable_hrs",
   "pm25_A_pctReporting",
   "pm25_B_pctReporting",
   "pm25_A_pctValid",
@@ -207,8 +210,7 @@ table_cols <- c(
 # Defines cleaner columns names for table.
 table_colnames <-  c(
   "Sensor",
-  "Percentage Usable A Hours",
-  "Percentage Usable B Hours",
+  "Percentage Usable Hours",
   "PM25 A Pct. Reporting",
   "PM25 B Pct. Reporting",
   "PM25 A Pct. Valid",
@@ -218,7 +220,7 @@ table_colnames <-  c(
 
 sensor_weekly_SoH %>% 
   select(all_of(table_cols)) %>% 
-  arrange(pct_usable_hours_A, pct_usable_hours_B,
+  arrange(pct_usable_hrs,
           pm25_A_pctReporting, pm25_B_pctReporting,
           pm25_A_pm25_B_rsquared,
           pm25_A_pctValid, pm25_B_pctValid) %>% 
@@ -234,8 +236,7 @@ Below are summary statistics for every site. They are the averaged over every se
 ```{r Table Key, echo = FALSE}
 col_descriptions <- c(
   "The user-created sensor label.",
-  "The percentage of hours with at least 20 PM measurements by Channel A out of a possible 168 (the number of hours in a week).",
-  "The percentage of hours with at least 20 PM measurements by Channel B out of a possible 168 (the number of hours in a week).",
+  "The percentage of hours with at least 20 PM measurements out of a possible 168 (the number of hours in a week).",
   "The percentage of daily Particulate Matter 2.5 readings collected by Channel A out of the total possible daily opportunities for data collection. (Sensors channels generate readings every 120 seconds.)",
   "The percentage of daily Particulate Matter 2.5 readings collected by Channel B out of the total possible daily opportunities for data collection. (Sensors channels generate readings every 120 seconds.)",
   "The percent of Channel A PM2.5 readings that are within the sensor's detection range (0 to 1000 ug/m3).",
@@ -260,7 +261,7 @@ table_key %>%
 
 The below plots use the MazamaScience AirSensor Sensor Health index to categorize the state of the sensor's health. This index is based on the A B rsquared (described above), to rank sensor reporting days as Good, Fair, or Poor. Red dots are channel A PM2.5 measurements. Blue dots are channel B PM2.5 measurements. The color bar underneath the points in the plot corresponds to the rated health index of the sensor for the corresponding day.
 
-```{r Weekly SoH Plots, echo=FALSE}
+```{r Weekly SoH Plots, echo=FALSE, message=FALSE}
 
 for (i in 1:length(pat_list)) {
     pat <- pat_list[[i]]

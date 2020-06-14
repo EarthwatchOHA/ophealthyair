@@ -8,6 +8,7 @@ suppressMessages({
 
 setwd(here::here())
 input_path <- "reporting/weekly-sensor-health-report.rmd"
+# TODO: May need to make an input.
 Sys.setenv(RSTUDIO_PANDOC="C:/Program Files/RStudio/bin/pandoc")
 #------------------------------------------------------------------------------
 # Command Line Interface
@@ -40,7 +41,7 @@ if ( !exists("args", mode = "list") ) {
   # Optional Arguments
   parser$add_argument("-o", "--output_dir",
                       type = "character",
-                      default = "outputs/sensor-health-reports/",
+                      default = "outputs/weekly-sensor-health-reports/",
                       help = paste("Folder to save health report to",
                                    "[default %(default)s].", sep = " "))
 

@@ -30,7 +30,6 @@ if ( !exists("args", mode = "list") ) {
                         "you must replace all backslashes with forward",
                         "slashes. Argument type: %(type)s.", sep = " "))
 
-
   # Optional Arguments
   parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
                       help="Print extra output [default]")

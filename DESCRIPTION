@@ -6,7 +6,7 @@ Authors@R:
            family = "Ozeroff",
            role = c("aut", "cre"),
            email = "OHA@earthwatch.org")
-Description: What the package does (one paragraph).
+Description: Facilitate the delivery of Operation Healthy Air.
 License: GNU General Public License v3.0
 Encoding: UTF-8
 LazyData: true
@@ -31,7 +31,11 @@ Imports:
     kableExtra,
     openair,
     rvg,
-    officer
+    officer,
+    openxlsx,
+    flextable,
+    modelr,
+    ropenaq
 RoxygenNote: 7.1.0
 Depends: 
     R (>= 3.50)

@@ -62,20 +62,20 @@ if ( !exists("args", mode = "list") ) {
                                    "Argument type: %(type)s",
                                    "[default %(default)s]", sep = " "))
 
-  parser$add_argument("-a", "--adjusted", default = TRUE,
+  parser$add_argument("-a", "--adjusted", action = "store_true",
                       help = paste("TRUE/FALSE; If indicator R2,",
                                    "adjust R2 [default %(default)s]",
-                                   sep = " "))
+                                   sep = " ")
+                      )
 
   args <- parser$parse_args()
 }
 
 #------------------------------------------------------------------------------
 # Input Control
-if ( args$adjusted && !args$indicator == "R2" ) {
+if ( args$adjusted & !args$indicator == "R2" ) {
   stop("Adjusted can only be used if indicator is R2.")
 }
-
 #------------------------------------------------------------------------------
 mod_select_stat <- args$indicator
 
@@ -194,4 +194,4 @@ out_path <- paste("data", "calibration-models", out_file, sep = "/")
 
 saveRDS(calibration, out_path)
 
-print(paste("Model saved to", outpath, sep = " "))
+print(paste("Model saved to ", out_path, '.', sep = " "))
