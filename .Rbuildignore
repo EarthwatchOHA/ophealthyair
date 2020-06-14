@@ -2,6 +2,9 @@
 ^\.Rproj\.user$
 
 
+^scripts$
+^outputs$
+^data$
 ^resources$
 ^reporting$
 ^revised-functions$
