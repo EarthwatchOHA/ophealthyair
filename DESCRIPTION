@@ -14,7 +14,7 @@ Suggests:
     testthat
 VignetteBuilder: knitr
 Imports: 
-    AirSensor,
+    AirSensor (>= 0.8.6),
     dplyr,
     magrittr,
     zip,
@@ -23,12 +23,18 @@ Imports:
     MazamaSpatialUtils,
     here,
     lubridate,
-    pavisualizR,
+    pavisualizR (>= 0.0.0.9000),
     argparse,
     formattable,
     knitr,
     rmarkdown,
-    kableExtra
+    kableExtra,
+    openair,
+    rvg,
+    officer
 RoxygenNote: 7.1.0
 Depends: 
     R (>= 3.50)
+Remotes: 
+    iozeroff/pavisualizR,
+    MazamaScience/AirSensor

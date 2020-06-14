@@ -37,17 +37,16 @@ if ( !exists("args", mode = "list") ) {
     description = paste(
       "Generate proxy-calibration model from collocated sensors (according to",
       "Sensor Catalog) at a single Collocation Site. Select best model of",
-      "collocated sensors using --indicator.", sep = " ")
+      "collocated sensors using --indicator. Currently,  only 90 days of",
+      "Reference Monitor data is available from the OpenAQ API, so models are",
+      "based on the most recent 90 days of data.", sep = " ")
     )
 
   # Required Arguments
-  required = parser$add_argument_group("Required Arguments")
-
-  required$add_argument("-s", "--site", action="store",
-                        required = TRUE, choices = site_opts,
-                        help = paste("Name of site to make calibration from",
-                                     "Argument type: %(type)s",
-                                     "[default %(default)s]", sep = " "))
+  parser$add_argument("site", action="store", choices = site_opts,
+                      help = paste("Name of site to make calibration from",
+                                   "Argument type: %(type)s",
+                                   "[default %(default)s]", sep = " "))
 
   # Optional Arguments
   parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
@@ -63,16 +62,19 @@ if ( !exists("args", mode = "list") ) {
                                    "Argument type: %(type)s",
                                    "[default %(default)s]", sep = " "))
 
-  parser$add_argument("-a", "--adjusted", action = "store", default = TRUE,
-                      help = paste("If indicator R2, boolean adjust R2",
-                                   "[default %(default)s]", sep = " "))
+  parser$add_argument("-a", "--adjusted", default = TRUE,
+                      help = paste("TRUE/FALSE; If indicator R2,",
+                                   "adjust R2 [default %(default)s]",
+                                   sep = " "))
 
   args <- parser$parse_args()
 }
 
 #------------------------------------------------------------------------------
 # Input Control
-
+if ( args$adjusted && !args$indicator == "R2" ) {
+  stop("Adjusted can only be used if indicator is R2.")
+}
 
 #------------------------------------------------------------------------------
 mod_select_stat <- args$indicator

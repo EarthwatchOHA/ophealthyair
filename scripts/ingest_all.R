@@ -15,19 +15,12 @@ if ( !exists("args", mode = "list") ) {
   # Instantiating parser.
   parser <- ArgumentParser(
     description = paste("Ingest all sensors specified in Sensor Catalog,",
-                        "specified by catalog_path.", sep = " ")m
+                        "specified by catalog_path.", sep = " "),
     add_help = TRUE
     )
 
-  # Arguments
-  parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
-                      help="Print extra output [default]")
-
-  parser$add_argument("-q", "--quietly", action="store_false",
-                      dest="verbose", help="Print little output")
-
-  parser$add_argument("-p", "--catalog_path", type = "character",
-                      required = TRUE,
+  # Positional Arguments
+  parser$add_argument("catalog_path", type = "character",
                       help = paste(
                         "Absolute path of the sensor catalog to",
                         "use. Must lead to a .xls or .xlsx file.",
@@ -37,6 +30,14 @@ if ( !exists("args", mode = "list") ) {
                         "you must replace all backslashes with forward",
                         "slashes. Argument type: %(type)s.", sep = " "))
 
+
+  # Optional Arguments
+  parser$add_argument("-v", "--verbose", action="store_true", default=TRUE,
+                      help="Print extra output [default]")
+
+  parser$add_argument("-q", "--quietly", action="store_false",
+                      dest="verbose", help="Print little output")
+
   parser$add_argument("-l", "--lookback_days", type = "double",
                       default = 30,
                       help = paste(
@@ -45,14 +46,15 @@ if ( !exists("args", mode = "list") ) {
                         "Argument type: %(type)s [default %(default)s]",
                         sep = " "))
 
-  parser$add_argument("-d", "--default_startdate", type = "double",
-                      default = 20180101,
+  parser$add_argument("-d", "--default_startdate", type = "character",
+                      default = "20180101",
                       help = paste(
-                        "8 digit integer representing the",
+                        "Character string representing the",
                         "default start date to use if",
                         "'Deploy Date' not specified in",
-                        "Sensor Catalog. Format example is",
-                        "20160131.Argument type: %(type)s.",
+                        "Sensor Catalog. Allowable date formats are",
+                        "'yyyymmdd' or 'yyyy-mm-dd'.",
+                        "Argument type: %(type)s.",
                         "[default %(default)s]", sep = " "
                         )
                       )
@@ -74,11 +76,18 @@ if ( args$lookback_days <= 0 | !is.integer(args$lookback_days) ) {
   stop("lookback_days must be a positive integer.")
 }
 
-if ( !is.integer(args$default_startdate) |
-     !(nchar(as.character(args$default_startdate)) == 8) |
-     args$default_startdate <= 0 ) {
+# Check Date Format
+IsDate <- function(mydate, date.format = "%d/%m/%y") {
+  tryCatch(!is.na(as.Date(mydate, date.format)),
+           error = function(err) {FALSE})
+}
 
-  stop("default_startdate must be an eight digit positive integer")
+if ( !is.character(args$default_startdate) |
+     !IsDate(test, date.format = "%Y%m%d") |
+     !IsDate(test, date.format = "%Y-%m-%d") ) {
+
+  stop(paste("default_startdate must be a character string date in one of",
+             "the following formats: 'YYYYmmdd' or 'YYYY-mm-dd'.", sep = " "))
 
 }
 #------------------------------------------------------------------------------
@@ -105,7 +114,7 @@ sensor_catalog <- sensor_catalog %>%
   ) %>%
   filter(site != "undeployed")
 
-print(paste("Loading List of All Purple Air Sensors Active within",
+print(paste("Loading List of All Purple Air Sensors (PAS) Active within",
       args$lookback_days, "days.", sep = " "))
 
 pas <- AirSensor::pas_createNew(countryCodes = countries_coded,
@@ -117,8 +126,7 @@ print("Active Sensor List Loaded  Successfully.")
 
 # Setting up startdate and enddate variables.
 startdates <- sensor_catalog$`Deploy Date` %>%
-  stringr::str_replace_all(pattern = "-", replacement = "") %>%
-  as.integer()
+  stringr::str_replace_all(pattern = "-", replacement = "")
 
 startdates[is.na(startdates)] <- args$default_startdate
 

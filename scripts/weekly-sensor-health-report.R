@@ -27,21 +27,16 @@ if ( !exists("args", mode = "list") ) {
     ),
     add_help = TRUE
   )
-  # Required Arguments
-  required = parser$add_argument_group("Required Arguments")
-  required$add_argument("-p", "--program",
+  # Positional Arguments
+  parser$add_argument("program",
                       type = "character",
                       choices = program_opts,
                       metavar = "",
-                      required = TRUE,
-                      help = paste(
-                        "Statistic to select best model",
-                        "Argument type: %(type)s",
-                        "Allowable options are:",
-                        paste(program_opts, collapse = ", "),
-                        "[default %(default)s]", sep = " "
+                      help = paste("Statistic to select best model",                        "Argument type: %(type)s",
+                                   "Allowable options are:",
+                                   paste(program_opts, collapse = ", "),
+                                   "[default %(default)s]", sep = " ")
                       )
-  )
   # Optional Arguments
   parser$add_argument("-o", "--output_dir",
                       type = "character",

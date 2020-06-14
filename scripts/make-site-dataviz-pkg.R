@@ -1,5 +1,4 @@
 # Outputs data delivery package for given site using  sensor_catalog, and previously generated pat_list.
-# TODO: Suppress much of the output.
 #------------------------------------------------------------------------------
 # Env setup
 suppressMessages({
@@ -41,32 +40,18 @@ if ( !exists("args", mode = "list") ) {
     add_help = TRUE
     )
 
-  # Required Arguments
-  required = parser$add_argument_group("Required Arguments")
+  # Positional Arguments
+  parser$add_argument("site", type = "character",
+                      choices = site_opts,
+                      metavar = "",
+                      help = paste(
+                        "Deployment site (based on Sensor Catalog)",
+                        "to make visualization package for.",
+                        "Argument type: %(type)s",
+                        "Options are:",
+                        paste(site_opts, collapse = "; "), sep = " "))
 
-  required$add_argument("-s", "--site", type = "character",
-                        required = TRUE, choices = site_opts,
-                        metavar = "",
-                        help = paste(
-                          "Deployment site (based on Sensor Catalog)",
-                          "to make visualization package for.",
-                          "Argument type: %(type)s",
-                          "Options are:",
-                          paste(site_opts, collapse = "; "), sep = " "))
 
-  required$add_argument("-a", "--aqi_country", type = "character",
-                        required = TRUE,
-                        choices = aqi_country_opts,
-                        default = "United States",
-                        metavar = "",
-                        help = paste(
-                          "What countries AQI should be used in",
-                          "visualizations. Argument type: %(type)s",
-                          "Allowed options are:",
-                          paste(aqi_country_opts, collapse = ", "),
-                          "[default %(default)s].", sep = " "
-                          )
-                        )
 
   # Optional Arguments
   parser$add_argument("-v", "--verbose", action="store_true",
@@ -79,17 +64,26 @@ if ( !exists("args", mode = "list") ) {
   parser$add_argument("-o", "--output_dir", type = "character",
                       default = "outputs/data-viz-pkgs",
                       help = paste("Directory for file output",
-                                   "Argument type: %(type)s",
+                                   "Argument type: %(type)s.",
                                    "[default %(default)s]", sep = " "))
 
+  parser$add_argument("-a", "--aqi_country", type = "character",
+                      choices = aqi_country_opts,
+                      default = "United States",
+                      help = paste("What countries AQI should be used in",
+                                   "visualizations.",
+                                   "Argument type: %(type)s.",
+                                   "Allowed options are:",
+                                   paste(aqi_country_opts, collapse = ", "),
+                                   "[default %(default)s].", sep = " ")
+                      )
+
   parser$add_argument("-c", "--calibrate", type = "logical",
-                      metavar = "",
                       default = FALSE,
-                      help = paste(
-                        "TRUE/FALSE; if TRUE, must also supply",
-                        "--calibration_model [default %(default)s].",
-                        sep = " "
-                        )
+                      help = paste("TRUE/FALSE; if TRUE, must also supply",
+                                   "--calibration_model",
+                                   "Argument type: %(type)s.",
+                                   "[default %(default)s].", sep = " ")
                       )
 
   parser$add_argument("-m", "--calibration_model",
@@ -98,15 +92,20 @@ if ( !exists("args", mode = "list") ) {
                       choices = calibration_opts,
                       help = paste(
                         "If --calibrate is TRUE, apply inputted calibration",
-                        "to sensor data. Allowable options are:",
-                        paste(calibration_opts, collapse = " "), sep = " "))
+                        "to sensor data.",
+                        "Argument type: %(type)s.",
+                        "Allowable options are:",
+                        paste(calibration_opts, collapse = " "), sep = " ")
+                      )
 
   parser$add_argument("-d", "--delete_uncompress", type = "logical",
                       default = FALSE, metavar = "",
                       help = paste(
-                        "TRUE/FALSE; delete the uncompressed version of",
-                        "the directory [default %(default)s].", sep = " "
-                        )
+                        "TRUE/FALSE; delete the uncompressed (.zip)",
+                        "version of the directory.",
+                        "Argument type: %(type)s.",
+                        "[default %(default)s].",
+                        sep = " ")
                       )
 
   parser$add_argument("-f", "--facet_covid_workweek",
@@ -114,7 +113,8 @@ if ( !exists("args", mode = "list") ) {
                       default = TRUE,
                       metavar = "",
                       help = paste(
-                        "TRUE/FALSE; facet COVID plots by workweek/weekend",
+                        "TRUE/FALSE; facet COVID plots by workweek/weekend.",
+                        "Argument type: %(type)s.",
                         "[default %(default)s].", sep = " "
                         )
                       )
@@ -139,17 +139,19 @@ pat_list <- load_pat_list(site = args$site)
 
 #------------------------------------------------------------------------------
 # Prepare Data
-
+print("Applying QAQC to data.")
 # QAQC data. See vignettes/qaqc_pt1.rmd for details.
 suppressMessages({
   source("scripts/qaqc.R")
 })
+print("QAQC applied successfully.")
 
 # Load cleaned data.
 pat_list <- readRDS("data/pat_list_qcd.rds")
 sensor_list <- readRDS("data/sensor_list.rds")
 
 if ( args$calibrate ) {
+  print("Calibrating data.")
   proxy_site <- args$calibration_model
   suppressMessages({
     source("scripts/calibrate.R")
@@ -157,6 +159,7 @@ if ( args$calibrate ) {
   # Load calibrated data.
   pat_list <- readRDS("data/pat_list_calibrated.rds")
   sensor_list <- readRDS("data/sensor_list_calibrated.rds")
+  print("Data calibrated successfully.")
 }
 
 # Separate sensor_list into component measurements.
@@ -173,7 +176,7 @@ aqi_country <- args$aqi_country %>%
                            destination = "iso2c")
 
 # Attempt to convert data timezone to local time.
-
+print("Converting to local timezone.")
 # Timezone set to NULL.
 timezone <- NULL
 # If possible extract timezone from pat_list meta.
@@ -205,10 +208,11 @@ if( !is.null(timezone) && timezone %in% OlsonNames() ) {
   )
 
 }
+print(paste0("Timezone converted to ", timezone, "."))
 
 #------------------------------------------------------------------------------
 # Create workbook:
-
+print("Making PA data workbook.")
 # Use aqi in make_site_dataviz_pkg adds a US AQI column to workbook.
 if (aqi_country == "IN") {
   include_aqi_data <- FALSE
@@ -226,15 +230,15 @@ if( include_aqi_data ) {
 }
 
 # Instantiate and fill workbook object.
-# TODO: Have PA_wkbk accept either just
 # sensor object, or sensor object and pat objects.
 wb <- make_PA_wkbk(sensor_list = sensor_list,
                    sensor_catalog = sensor_catalog,
                    aqi_data = aqi_list)
 
+print("Workbook successfully made.")
 #------------------------------------------------------------------------------
 # Vizualization Preparation:
-
+print("Preparing for visualizations.")
 # Make palette of colors to use across visualizations for sensors
 sensor_colors <- RColorBrewer::brewer.pal(n = length(names(sensor_list)),
                                           name = "Dark2")
@@ -249,6 +253,8 @@ visualizations <- vector("character")
 
 #------------------------------------------------------------------------------
 # Sensor Metadata FlexTable:
+print("Making Sensor Metadata Table.")
+
 meta_colnames <- c(
   "label",
   "Indoor/Outdoor",
@@ -294,45 +300,43 @@ for (i in 1:nrow(sensor_catalog)) {
 # Adding to ppt.
 visualizations <- append(visualizations, "sensor_meta_flex")
 
-# Calendar Plots:
+print("Sensor Metadata Table made")
 #------------------------------------------------------------------------------
-.calendar_pmPlot <- function(
-  data,
-  sensor_name,
-  aqi_country,
-  data_thresh = 75
-  ) {
-  # Loading AQI Info
-  aqi_info <- pavisualizR::aqi_info$aqi_country
+# Calendar Plots:
+print("Making Calendar plots.")
 
-  # Generating plot.
-  plot <- openair::calendarPlot(data,
-                                pollutant = "pm25",
-                                main = "Daily Average Particulate Matter 2.5",
-                                xlab = sensor_name,
-                                ylab = "Particulate Matter 2.5",
-                                cols = aqi_info$colors,
-                                labels = aqi_info$names,
-                                breaks = aqi_info$breaks_24,
-                                data.thresh = data_thresh)
-  invisible(plot)
-}
+# Loading AQI Info
 
-calendarPlots_list <- purrr::map2(
+
+# Generating plot.
+calendarPlots_list <- purrr::imap(
   .x = pm_list,
-  .y = names(pm_list),
-  .f = function(x,y, aqi_country) sensor_extractData(x) %>%
+  .f = function(x,y) sensor_extractData(x) %>%
     select(date = datetime, pm25 = 2) %>%
-    .calendar_pmPlot(sensor_name = y,
-                     aqi_country = aqi_country),
-  aqi_country = aqi_country)
+    openair::calendarPlot(
+      pollutant = "pm25",
+      main = "Daily Average Particulate Matter 2.5",
+      xlab = y,
+      ylab = "Particulate Matter 2.5",
+      cols = pavisualizR::aqi_info[[aqi_country]][["colors"]],
+      labels = pavisualizR::aqi_info[[aqi_country]][["names"]],
+      breaks = pavisualizR::aqi_info[[aqi_country]][["breaks_24"]],
+      data.thresh = 75
+      )
+  )
 
 if( length(calendarPlots_list) > 0 ) {
   # Adding to viz
   visualizations <- append(x = visualizations, "calendarPlots_list")
+  print(
+    paste0("Calendar plots added for ",
+          paste(names(calendarPlots_list), collapse = ", "),
+          ".")
+    )
 }
 #------------------------------------------------------------------------------
 # Workweek/Weekend Plot:
+print("Making Workweek/Weekend plots.")
 
 workweek_plot <- workweek_weeknd_pmPlot(sensor_list = pm_list,
                                         sensor_colors = sensor_colors,
@@ -342,10 +346,14 @@ if( is.ggplot(workweek_plot) ) {
   # Adding to viz
   visualizations <- append(x = visualizations, "workweek_plot")
 
+  print("Workweek/Weekend plot added.")
 }
 
+
 #------------------------------------------------------------------------------
-# Stacked Day of Week AQI Bar Charts
+# Day of Week AQI Bar Charts
+print("Making Day of Week AQI Bar Charts.")
+
 day_bar_plots <- purrr::map(.x = pm_list, .f = day_of_week_aqiBar,
                             aqi_country = aqi_country, position = "fill")
 
@@ -353,10 +361,17 @@ if( length(day_bar_plots ) > 0 ) {
   # Adding to viz
   visualizations <- append(x = visualizations, "day_bar_plots")
 
+  print(
+    paste("Day of Week AQI Bar Charts added for",
+          paste(names(day_bar_plots), collapse = ", "),
+          ".", sep = " ")
+  )
 }
 
 #------------------------------------------------------------------------------
 # Monthly Faceted AQI Colored Points
+print("Making Hourly Average plots.")
+
 aqicolor_points_plots <- purrr::map(
   .x = pm_list,
   .f = function(x) sensor_hourlyavg_aqicolorsPlot(sensor = x,
@@ -370,6 +385,11 @@ if( length(aqicolor_points_plots ) > 0 ) {
   # Adding to viz
   visualizations <- append(x = visualizations, "aqicolor_points_plots")
 
+  print(
+    paste0("Hourly Average plots added for ",
+           paste(names(aqicolor_points_plots), collapse = ", "),
+           ".")
+  )
 }
 
 #------------------------------------------------------------------------------
@@ -377,10 +397,11 @@ if( length(aqicolor_points_plots ) > 0 ) {
 # TODO: Affix to covid-measures database.
 # TODO: Update plot for before, during, after.
 
+print("Making COVID-19 plots.")
 # Prepare COVID Measures Dataframe.
 
 # Load Covid Measures df.
-covid_measures <- .load_covid_measures() %>%
+covid_measures <- pavisualizR::covid_measures %>%
   # Create interval out of start and end dates for measures.
   dplyr::mutate(interval = lubridate::interval(start = start_date,
                                                end = end_date)) %>%
@@ -399,21 +420,29 @@ visualizations <- append(visualizations, "covid_measures_flex")
 # Make COVID Plots
 covid_plots <-
   purrr::map(.x = pm_list,
-             .f = covid_measures_Plot,
-             covid_measures = covid_measures,
+             .f = covid_measuresPlot,
              facet_workweek = args$facet_covid_workweek)
 
 if( length(covid_plots) > 0 ) {
   # Add to ppt.
   visualizations <- append(x = visualizations, "covid_plots")
+
+  print(
+    paste0("COVID-19 plots added for ",
+           paste(names(covid_plots), collapse = ", "),
+           ".")
+  )
 }
 
 #------------------------------------------------------------------------------
 # Create ppt object.
+print("Making powerpoint.")
+
 ppt <- officer::read_pptx()
 
 viz_ppt <- make_viz_ppt(mget(visualizations), ppt = ppt)
 
+print("Powerpoint made.")
 #------------------------------------------------------------------------------
 # Save objects to dir.
 # Make folder for site_deliverable:
