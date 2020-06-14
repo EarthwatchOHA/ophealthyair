@@ -78,8 +78,8 @@ if ( !exists("args", mode = "list") ) {
                                    "[default %(default)s].", sep = " ")
                       )
 
-  parser$add_argument("-c", "--calibrate", type = "logical",
-                      default = FALSE,
+  parser$add_argument("-c", "--calibrate",
+                      default = FALSE, action="store_true",
                       help = paste("TRUE/FALSE; if TRUE, must also supply",
                                    "--calibration_model",
                                    "Argument type: %(type)s.",
@@ -98,8 +98,9 @@ if ( !exists("args", mode = "list") ) {
                         paste(calibration_opts, collapse = " "), sep = " ")
                       )
 
-  parser$add_argument("-d", "--delete_uncompress", type = "logical",
-                      default = FALSE, metavar = "",
+  parser$add_argument("-d", "--delete_uncompress",
+                      default = FALSE,
+                      action = "store_true",
                       help = paste(
                         "TRUE/FALSE; delete the uncompressed (.zip)",
                         "version of the directory.",
@@ -109,9 +110,8 @@ if ( !exists("args", mode = "list") ) {
                       )
 
   parser$add_argument("-f", "--facet_covid_workweek",
-                      type = "logical",
+                      action = "store_true",
                       default = TRUE,
-                      metavar = "",
                       help = paste(
                         "TRUE/FALSE; facet COVID plots by workweek/weekend.",
                         "Argument type: %(type)s.",
@@ -127,7 +127,6 @@ if ( !exists("args", mode = "list") ) {
 if ( args$calibrate & is.null(args$calibration_model) ) {
   stop("If --calibrate is TRUE, calibration model must be specified.")
 }
-
 #------------------------------------------------------------------------------
 # Load Data
 programs <- c("India" = "IN", "Sri Lanka" = "IN", "Southern California" = "US",

@@ -24,16 +24,12 @@ for (i in 1:length(pat_list_qcd)) {
 
   data[["pm25_A"]] <- data %>%
     select(pm25_pa = pm25_A, temperature, humidity) %>%
-    modelr::add_predictions(model = mod,
-                            # If an NA in input var, will return NA.
-                            na.action = na.exclude) %>%
+    modelr::add_predictions(model = mod) %>%
     pull(pred)
 
   data[["pm25_B"]] <- data %>%
     select(pm25_pa = pm25_B, temperature, humidity) %>%
-    modelr::add_predictions(model = mod,
-                            # If an NA in input var, will return NA.
-                            na.action = na.exclude) %>%
+    modelr::add_predictions(model = mod) %>%
     pull(pred)
 
 
