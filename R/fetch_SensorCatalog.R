@@ -31,7 +31,7 @@ fetch_SensorCatalog <- function(
   output_path = "data/sensor_catalog.rds"
 ) {
   # Updates Sensor Catalog .rds object from OneDrive file.
-  sensor_catalog <- readxl::read_excel(catalog_path, sheet = "Sensor Catalog") %>%
+  sensor_catalog <- readxl::read_excel(catalog_path, sheet = "Deployed Sensors") %>%
     dplyr::rename(id = "Sensor ID", label = "Sensor Label", site = "Deploy Site") %>%
     mutate(
       Collocated  = if_else(Collocated == 1, TRUE, FALSE,

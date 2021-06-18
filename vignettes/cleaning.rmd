@@ -17,12 +17,10 @@ knitr::opts_chunk$set(
 library(dplyr)
 library(ggplot2)
 devtools::load_all()
-devtools::load_all(path = "C://Users/iozeroff/Data-Science/R-Projects/AirSensor")
+devtools::load_all(path = "./")
 
 knitr::opts_knit$set(root.dir = here::here())
 
-# Establish Plotting Theme
-ggthemr::ggthemr("pale", layout = "clean", type = "outer")
 ```
 
 

@@ -11,31 +11,30 @@ License: GNU General Public License v3.0
 Encoding: UTF-8
 LazyData: true
 Suggests: 
-    testthat
+    testthat,
+    pavisualizR,
+    flextable,
+    modelr,
+    openxlsx,
+    officer,
+    openair,
+    formattable,
+    zip,
+    rvg
 VignetteBuilder: knitr
 Imports: 
     AirSensor (>= 0.8.6),
     dplyr,
     magrittr,
-    zip,
     roxygen2,
     MazamaCoreUtils,
     MazamaSpatialUtils,
     here,
     lubridate,
-    pavisualizR (>= 0.0.0.9000),
     argparse,
-    formattable,
     knitr,
     rmarkdown,
-    kableExtra,
-    openair,
-    rvg,
-    officer,
-    openxlsx,
-    flextable,
-    modelr,
-    ropenaq
+    kableExtra
 RoxygenNote: 7.1.0
 Depends: 
     R (>= 3.50)

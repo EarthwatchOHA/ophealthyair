@@ -22,7 +22,7 @@ dir.create("outputs/data-viz-pkgs")
 
 dir.create("data/spatial")
 MazamaSpatialUtils::setSpatialDataDir("data/spatial")
-MazamaSpatialUtils::installSpatialData()
+MazamaSpatialUtils::installSpatialData("NaturalEarthAdm1")
 
 ```
 
