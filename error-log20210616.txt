@@ -1,0 +1,68 @@
+
+This repo is heavily built using Mazama AirSensor package, which is now out and
+maintained. If you want to use the functionality in this repo it's recommended to
+follow that repository on github to stay abreast of maintenance developments.
+
+Files most possibly of use:
+
+Sections:
+Ingestion:
+This section is likely the most useful for your purposes. Basically what it does,
+is it automates the ingestion of data from the purple air API (using Mazama api),
+from the metadata contained in the sensor catalog.
+
+My recommendation of course is to phase the sensor catalog out of use as soon as
+possible and use a database to store all sensor data. This code then would be
+most useful in facilitating the creation of that database from our current
+"database", the sensor catalog. All data persistence in this section is in the form
+of .RDS files in the created in data/ (most particularly the pat_list.RDS).
+
+Most useful for this section.
+- ./R/fetch_pat.R
+- ./R/fetch_pat_list.R
+- scripts/ingest_all.R works, it will need to edited to store data, because it's was used as a piece of a pipeline. Not good data persistence.
+
+
+QAQC:
+- Data persistent QAQC pipeline built on Mazama AirSensor QAQC functionality
+which has been improved significantly over the past year. Involves significant
+scientific determinations you'll want to make on your own.
+Honestly I don't see much value for you in these scripts and functions. If you want
+to outsource QAQC review the work Mazama has done in the past year.
+
+Calibration:
+- This was the piece we never fully worked out. When this was last developed our
+collocation program was quite new. That said, the general structure of the system is decent
+so could be used as a backbone for future calibration code for a calibration pipeline.
+
+Visualization:
+rOpenAQ was used to create the Windrose plots and calendar plots. This library
+is failing and doesn't appear to be maintained. The
+
+
+Outputs of this part:
+- Visualization Powerpoint
+  - Sensor metadata table
+  - Calendar plots for each sensor
+  - Weekday v. Weekend Avg Hourly Concentrations
+  - AQI proportions by weekday
+  - Monthly values w/ AQI
+  - If NOAA data available Windrose Plots
+
+- Curated Excelworkbook
+
+
+Sensor Health Report:
+The purpose of this report is to show what sensors from the catalog are actively
+updating online, which are not, and when the last time these sensors reported was.
+Additionally it uses Mazama AirSensor State of Health analytics to review sensor
+functioning.
+
+My recommendation would be to speak with Purple Air about adding to their API
+SD card reporting status (though I understand this isn't a huge concern).
+You can then either using their API grouping functionality, or using the catalog,
+create a scraper/app to monitor status, update in database and provide active notifications.
+
+
+
+
